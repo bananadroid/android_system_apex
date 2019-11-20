@@ -811,17 +811,17 @@ Result<void> BackupActivePackages() {
   return {};
 }
 
-Result<void> DoRollback(ApexSession& session) {
+Result<void> DoRevert(ApexSession& session) {
+  if (gInFsCheckpointMode) {
+    // We will revert automatically when we reboot
+    return {};
+  }
   auto scope_guard = android::base::make_scope_guard([&]() {
-    if (!gInFsCheckpointMode) {
-      auto st = session.UpdateStateAndCommit(SessionState::ROLLBACK_FAILED);
-      LOG(DEBUG) << "Marking " << session << " as failed to rollback";
-      if (!st.ok()) {
-        LOG(WARNING) << "Failed to mark session " << session
-                     << " as failed to rollback : " << st.error();
-      }
-    } else {
-      LOG(INFO) << "Not restoring active packages in checkpoint mode.";
+    auto st = session.UpdateStateAndCommit(SessionState::REVERT_FAILED);
+    LOG(DEBUG) << "Marking " << session << " as failed to revert";
+    if (!st) {
+      LOG(WARNING) << "Failed to mark session " << session
+                   << " as failed to revert : " << st.error();
     }
   });
 
@@ -860,65 +860,72 @@ Result<void> DoRollback(ApexSession& session) {
                         << kActiveApexPackagesDataDir;
   }
 
-  scope_guard.Disable();  // Rollback succeeded. Accept state.
+  scope_guard.Disable();  // Revert succeeded. Accept state.
   return {};
 }
 
-Result<void> RollbackActivatedSession(ApexSession& session) {
-  auto status =
-      session.UpdateStateAndCommit(SessionState::ROLLBACK_IN_PROGRESS);
-  if (!status.ok()) {
-    // TODO: should we continue with a rollback?
-    return Error() << "Rollback of session " << session
+Result<void> RevertActivatedSession(ApexSession& session) {
+  if (gInFsCheckpointMode) {
+    LOG(DEBUG) << "Checkpoint mode is enabled";
+    // On checkpointing devices, our modifications on /data will be
+    // automatically reverted when we abort changes. Updating the session
+    // state is pointless here, as it will be reverted as well.
+    return {};
+  }
+
+  auto status = session.UpdateStateAndCommit(SessionState::REVERT_IN_PROGRESS);
+  if (!status) {
+    // TODO: should we continue with a revert?
+    return Error() << "Revert of session " << session
                    << " failed : " << status.error();
   }
 
-  status = DoRollback(session);
-  if (!status.ok()) {
-    return Error() << "Rollback of session " << session
+  status = DoRevert(session);
+  if (!status) {
+    return Error() << "Revert of session " << session
                    << " failed : " << status.error();
   }
 
-  status = session.UpdateStateAndCommit(SessionState::ROLLED_BACK);
-  if (!status.ok()) {
+  status = session.UpdateStateAndCommit(SessionState::REVERTED);
+  if (!status) {
     LOG(WARNING) << "Failed to mark session " << session
-                 << " as rolled back : " << status.error();
+                 << " as reverted : " << status.error();
   }
 
   return {};
 }
 
-Result<void> RollbackSession(ApexSession& session) {
-  LOG(DEBUG) << "Initializing rollback of " << session;
+Result<void> RevertSession(ApexSession& session) {
+  LOG(DEBUG) << "Initializing revert of " << session;
 
   switch (session.GetState()) {
-    case SessionState::ROLLBACK_IN_PROGRESS:
+    case SessionState::REVERT_IN_PROGRESS:
       [[clang::fallthrough]];
-    case SessionState::ROLLED_BACK:
+    case SessionState::REVERTED:
       return {};
     case SessionState::ACTIVATED:
-      return RollbackActivatedSession(session);
+      return RevertActivatedSession(session);
     default:
       return Error() << "Can't restore session " << session
                      << " : session is in a wrong state";
   }
 }
 
-Result<void> ResumeRollback(ApexSession& session) {
+Result<void> ResumeRevert(ApexSession& session) {
   auto backup_exists = PathExists(std::string(kApexBackupDir));
   if (!backup_exists.ok()) {
     return backup_exists.error();
   }
   if (*backup_exists) {
-    auto rollback_status = DoRollback(session);
-    if (!rollback_status.ok()) {
-      return rollback_status;
+    auto revert_status = DoRevert(session);
+    if (!revert_status) {
+      return revert_status;
     }
   }
-  auto status = session.UpdateStateAndCommit(SessionState::ROLLED_BACK);
-  if (!status.ok()) {
+  auto status = session.UpdateStateAndCommit(SessionState::REVERTED);
+  if (!status) {
     LOG(WARNING) << "Failed to mark session " << session
-                 << " as rolled back : " << status.error();
+                 << " as reverted : " << status.error();
   }
   return {};
 }
@@ -1016,7 +1023,7 @@ std::string GetActiveMountPoint(const ApexManifest& manifest) {
 
 }  // namespace apexd_private
 
-Result<void> resumeRollbackIfNeeded() {
+Result<void> resumeRevertIfNeeded() {
   auto session = ApexSession::GetActiveSession();
   if (!session.ok()) {
     return session.error();
@@ -1024,9 +1031,9 @@ Result<void> resumeRollbackIfNeeded() {
   if (!session->has_value()) {
     return {};
   }
-  if ((**session).GetState() == SessionState::ROLLBACK_IN_PROGRESS) {
-    // This means that phone was rebooted during the rollback. Resuming it.
-    return ResumeRollback(**session);
+  if ((**session).GetState() == SessionState::REVERT_IN_PROGRESS) {
+    // This means that phone was rebooted during the revert. Resuming it.
+    return ResumeRevert(**session);
   }
   return {};
 }
@@ -1200,7 +1207,7 @@ Result<void> abortActiveSession() {
       case SessionState::STAGED:
         return session.DeleteSession();
       case SessionState::ACTIVATED:
-        return RollbackActivatedSession(session);
+        return RevertActivatedSession(session);
       default:
         return Error() << "Session " << session << " can't be aborted";
     }
@@ -1705,27 +1712,27 @@ Result<void> unstagePackages(const std::vector<std::string>& paths) {
   return {};
 }
 
-Result<void> rollbackActiveSession(const std::string& crashing_native_process) {
+Result<void> revertActiveSession(const std::string& crashing_native_process) {
   auto session = ApexSession::GetActiveSession();
   if (!session.ok()) {
     return Error() << "Failed to get active session : " << session.error();
   } else if (!session->has_value()) {
-    return Error() << "Rollback requested, when there are no active sessions.";
+    return Error() << "Revert requested, when there are no active sessions.";
   } else {
     if (!crashing_native_process.empty()) {
       (*session)->SetCrashingNativeProcess(crashing_native_process);
     }
-    return RollbackSession(*(*session));
+    return RevertSession(*(*session));
   }
 }
 
-Result<void> rollbackActiveSessionAndReboot(
+Result<void> revertActiveSessionAndReboot(
     const std::string& crashing_native_process) {
-  auto status = rollbackActiveSession(crashing_native_process);
-  if (!status.ok()) {
+  auto status = revertActiveSession(crashing_native_process);
+  if (!status) {
     return status;
   }
-  LOG(ERROR) << "Successfully rolled back. Time to reboot device.";
+  LOG(ERROR) << "Successfully reverted. Time to reboot device.";
   if (gInFsCheckpointMode) {
     Result<void> res = gVoldService->AbortChanges(
         "apexd_initiated" /* message */, false /* retry */);
@@ -1860,23 +1867,22 @@ void onStart(CheckpointInterface* checkpoint_service) {
     }
   }
 
-  // Ask whether we should roll back any active sessions; this can happen if
+  // Ask whether we should revert any staged sessions; this can happen if
   // we've exceeded the retry count on a device that supports filesystem
   // checkpointing.
   if (gSupportsFsCheckpoints) {
-    Result<bool> needs_rollback = gVoldService->NeedsRollback();
-    if (!needs_rollback.ok()) {
-      LOG(ERROR) << "Failed to check if we need a rollback: "
-                 << needs_rollback.error();
-    } else if (*needs_rollback) {
+    Result<bool> needs_revert = gVoldService->NeedsRollback();
+    if (!needs_revert) {
+      LOG(ERROR) << "Failed to check if we need a revert: "
+                 << needs_revert.error();
+    } else if (*needs_revert) {
       LOG(INFO) << "Exceeded number of session retries ("
                 << kNumRetriesWhenCheckpointingEnabled
-                << "). Starting a rollback";
-      Result<void> status = rollbackActiveSession("");
-      if (!status.ok()) {
-        LOG(ERROR)
-            << "Failed to roll back (as requested by fs checkpointing) : "
-            << status.error();
+                << "). Starting a revert";
+      Result<void> status = revertActiveSession("");
+      if (!status) {
+        LOG(ERROR) << "Failed to revert (as requested by fs checkpointing) : "
+                   << status.error();
       }
     }
   }
@@ -1892,17 +1898,17 @@ void onStart(CheckpointInterface* checkpoint_service) {
   // Activate APEXes from /data/apex. If one in the directory is newer than the
   // system one, the new one will eclipse the old one.
   scanStagedSessionsDirAndStage();
-  status = resumeRollbackIfNeeded();
-  if (!status.ok()) {
-    LOG(ERROR) << "Failed to resume rollback : " << status.error();
+  status = resumeRevertIfNeeded();
+  if (!status) {
+    LOG(ERROR) << "Failed to resume revert : " << status.error();
   }
 
   std::vector<ApexFile> data_apex;
   if (auto scan = ScanApexFiles(kActiveApexPackagesDataDir); !scan.ok()) {
     LOG(ERROR) << "Failed to scan packages from " << kActiveApexPackagesDataDir
                << " : " << scan.error();
-    if (auto rollback = rollbackActiveSessionAndReboot(""); !rollback.ok()) {
-      LOG(ERROR) << "Failed to rollback : " << rollback.error();
+    if (auto revert = revertActiveSessionAndReboot(""); !revert.ok()) {
+      LOG(ERROR) << "Failed to revert : " << revert.error();
     }
   } else {
     auto filter_fn = [](const ApexFile& apex) {
@@ -1920,26 +1926,20 @@ void onStart(CheckpointInterface* checkpoint_service) {
   if (auto ret = ActivateApexPackages(data_apex); !ret.ok()) {
     LOG(ERROR) << "Failed to activate packages from "
                << kActiveApexPackagesDataDir << " : " << ret.error();
-    if (auto rollback = rollbackActiveSessionAndReboot(""); !rollback.ok()) {
-      LOG(ERROR) << "Failed to rollback : " << rollback.error();
+    if (auto revert = revertActiveSessionAndReboot(""); !revert.ok()) {
+      LOG(ERROR) << "Failed to revert : " << revert.error();
     }
   }
 
   // Now also scan and activate APEXes from pre-installed directories.
   for (const auto& dir : kApexPackageBuiltinDirs) {
-    auto scan = ScanApexFiles(dir.c_str());
-    if (!scan.ok()) {
-      LOG(ERROR) << "Failed to scan APEX packages from " << dir << " : "
-                 << scan.error();
-      if (auto rollback = rollbackActiveSessionAndReboot(""); !rollback.ok()) {
-        LOG(ERROR) << "Failed to rollback : " << rollback.error();
-      }
-    }
-    if (auto activate = ActivateApexPackages(*scan); !activate.ok()) {
+    // TODO(b/123622800): if activation failed, revert and reboot.
+    status = scanPackagesDirAndActivate(dir.c_str());
+    if (!status) {
       // This should never happen. Like **really** never.
       // TODO: should we kill apexd in this case?
       LOG(ERROR) << "Failed to activate packages from " << dir << " : "
-                 << activate.error();
+                 << status.error();
     }
   }
 
