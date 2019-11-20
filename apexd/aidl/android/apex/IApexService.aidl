@@ -32,6 +32,7 @@ interface IApexService {
    ApexInfo[] getAllPackages();
 
    void abortActiveSession();
+   void abortStagedSession(int session_id);
 
    /**
     * Copies the CE apex data directory for the given user to the backup
