@@ -117,7 +117,7 @@ int main(int /*argc*/, char** argv) {
   // is complete.
   android::apex::onAllPackagesActivated();
 
-  android::apex::waitForBootStatus(android::apex::revertActiveSessionAndReboot,
+  android::apex::waitForBootStatus(android::apex::revertActiveSessionsAndReboot,
                                    android::apex::bootCompletedCleanup);
 
   android::apex::binder::JoinThreadPool();
