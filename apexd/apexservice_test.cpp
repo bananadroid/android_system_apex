@@ -2334,7 +2334,7 @@ TEST_F(ApexServiceRevertTest, RevertStoresCrashingNativeProcess) {
   // Make sure /data/apex/active is non-empty.
   ASSERT_TRUE(IsOk(service_->stagePackages({installer.test_file})));
   std::string native_process = "test_process";
-  Result<void> res = ::android::apex::revertActiveSession(native_process);
+  Result<void> res = ::android::apex::revertActiveSessions(native_process);
   session = ApexSession::GetSession(1543);
   ASSERT_EQ(session->GetCrashingNativeProcess(), native_process);
 }
