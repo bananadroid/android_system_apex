@@ -28,4 +28,5 @@ parcelable ApexSessionInfo {
     boolean isSuccess;
     boolean isRolledBack;
     boolean isRollbackFailed;
+    @utf8InCpp String crashingNativeProcess;
 }
