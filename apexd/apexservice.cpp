@@ -501,7 +501,7 @@ BinderStatus ApexService::restoreCeData(int user_id, int rollback_id,
 BinderStatus ApexService::destroyDeSnapshots(int rollback_id) {
   LOG(DEBUG) << "destroyDeSnapshots() received by ApexService.";
   Result<void> res = ::android::apex::destroyDeSnapshots(rollback_id);
-  if (!res) {
+  if (!res.ok()) {
     return BinderStatus::fromExceptionCode(
         BinderStatus::EX_SERVICE_SPECIFIC,
         String8(res.error().message().c_str()));
