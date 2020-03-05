@@ -441,6 +441,7 @@ class ApexServiceTest : public ::testing::Test {
       ASSERT_FALSE(ec) << "Failed to delete " << p.path() << " : "
                        << ec.message();
     });
+    fs::remove_all(kApexSessionsDir);
     ASSERT_TRUE(IsOk(status));
 
     DeleteIfExists("/data/misc_ce/0/apexdata/apex.apexd_test");
