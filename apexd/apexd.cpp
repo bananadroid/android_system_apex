@@ -812,16 +812,16 @@ Result<void> BackupActivePackages() {
 }
 
 Result<void> DoRollback(ApexSession& session) {
-  if (gInFsCheckpointMode) {
-    // We will roll back automatically when we reboot
-    return {};
-  }
   auto scope_guard = android::base::make_scope_guard([&]() {
-    auto st = session.UpdateStateAndCommit(SessionState::ROLLBACK_FAILED);
-    LOG(DEBUG) << "Marking " << session << " as failed to rollback";
-    if (!st.ok()) {
-      LOG(WARNING) << "Failed to mark session " << session
-                   << " as failed to rollback : " << st.error();
+    if (!gInFsCheckpointMode) {
+      auto st = session.UpdateStateAndCommit(SessionState::ROLLBACK_FAILED);
+      LOG(DEBUG) << "Marking " << session << " as failed to rollback";
+      if (!st.ok()) {
+        LOG(WARNING) << "Failed to mark session " << session
+                     << " as failed to rollback : " << st.error();
+      }
+    } else {
+      LOG(INFO) << "Not restoring active packages in checkpoint mode.";
     }
   });
 
@@ -864,21 +864,7 @@ Result<void> DoRollback(ApexSession& session) {
   return {};
 }
 
-Result<void> RollbackStagedSession(ApexSession& session) {
-  // If the session is staged, it hasn't been activated yet, and we just need
-  // to update its state to prevent it from being activated later.
-  return session.UpdateStateAndCommit(SessionState::ROLLED_BACK);
-}
-
 Result<void> RollbackActivatedSession(ApexSession& session) {
-  if (gInFsCheckpointMode) {
-    LOG(DEBUG) << "Checkpoint mode is enabled";
-    // On checkpointing devices, our modifications on /data will be
-    // automatically rolled back when we abort changes. Updating the session
-    // state is pointless here, as it will be rolled back as well.
-    return {};
-  }
-
   auto status =
       session.UpdateStateAndCommit(SessionState::ROLLBACK_IN_PROGRESS);
   if (!status.ok()) {
@@ -910,8 +896,6 @@ Result<void> RollbackSession(ApexSession& session) {
       [[clang::fallthrough]];
     case SessionState::ROLLED_BACK:
       return {};
-    case SessionState::STAGED:
-      return RollbackStagedSession(session);
     case SessionState::ACTIVATED:
       return RollbackActivatedSession(session);
     default:
@@ -1708,23 +1692,6 @@ Result<void> unstagePackages(const std::vector<std::string>& paths) {
   return {};
 }
 
-Result<void> rollbackStagedSessionIfAny() {
-  auto session = ApexSession::GetActiveSession();
-  if (!session.ok()) {
-    return session.error();
-  }
-  if (!session->has_value()) {
-    LOG(WARNING) << "No session to rollback";
-    return {};
-  }
-  if ((*session)->GetState() == SessionState::STAGED) {
-    LOG(INFO) << "Rolling back session " << **session;
-    return RollbackStagedSession(**session);
-  }
-  return Error() << "Can't rollback " << **session
-                 << " because it is not in STAGED state";
-}
-
 Result<void> rollbackActiveSession(const std::string& crashing_native_process) {
   auto session = ApexSession::GetActiveSession();
   if (!session.ok()) {
@@ -1880,7 +1847,7 @@ void onStart(CheckpointInterface* checkpoint_service) {
     }
   }
 
-  // Ask whether we should roll back any staged sessions; this can happen if
+  // Ask whether we should roll back any active sessions; this can happen if
   // we've exceeded the retry count on a device that supports filesystem
   // checkpointing.
   if (gSupportsFsCheckpoints) {
@@ -1892,7 +1859,7 @@ void onStart(CheckpointInterface* checkpoint_service) {
       LOG(INFO) << "Exceeded number of session retries ("
                 << kNumRetriesWhenCheckpointingEnabled
                 << "). Starting a rollback";
-      Result<void> status = rollbackStagedSessionIfAny();
+      Result<void> status = rollbackActiveSession("");
       if (!status.ok()) {
         LOG(ERROR)
             << "Failed to roll back (as requested by fs checkpointing) : "
