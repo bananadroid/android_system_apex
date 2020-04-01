@@ -74,6 +74,7 @@ android::base::Result<ApexFile> getActivePackage(
 
 std::vector<ApexFile> getFactoryPackages();
 
+android::base::Result<void> abortStagedSession(const int session_id);
 android::base::Result<void> abortActiveSession();
 
 android::base::Result<ino_t> snapshotCeData(const int user_id,

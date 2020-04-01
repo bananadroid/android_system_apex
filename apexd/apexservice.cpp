@@ -77,6 +77,7 @@ class ApexService : public BnApexService {
   BinderStatus postinstallPackages(
       const std::vector<std::string>& paths) override;
   BinderStatus abortActiveSession() override;
+  BinderStatus abortStagedSession(int session_id) override;
   BinderStatus revertActiveSession() override;
   BinderStatus resumeRevertIfNeeded() override;
   BinderStatus snapshotCeData(int user_id, int rollback_id,
@@ -436,6 +437,17 @@ BinderStatus ApexService::abortActiveSession() {
   LOG(DEBUG) << "abortActiveSession() received by ApexService.";
   Result<void> res = ::android::apex::abortActiveSession();
   if (!res.ok()) {
+    return BinderStatus::fromExceptionCode(
+        BinderStatus::EX_ILLEGAL_ARGUMENT,
+        String8(res.error().message().c_str()));
+  }
+  return BinderStatus::ok();
+}
+
+BinderStatus ApexService::abortStagedSession(int session_id) {
+  LOG(DEBUG) << "abortStagedSession() received by ApexService.";
+  Result<void> res = ::android::apex::abortStagedSession(session_id);
+  if (!res) {
     return BinderStatus::fromExceptionCode(
         BinderStatus::EX_ILLEGAL_ARGUMENT,
         String8(res.error().message().c_str()));
