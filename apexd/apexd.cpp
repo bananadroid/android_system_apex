@@ -1929,25 +1929,10 @@ Result<std::vector<ApexFile>> submitStagedSession(
     return Error() << "Session id was not provided.";
   }
 
-  bool needsBackup = true;
-
-  if (gSupportsFsCheckpoints) {
-    Result<void> checkpoint_status =
-        gVoldService->StartCheckpoint(kNumRetriesWhenCheckpointingEnabled);
-    if (!checkpoint_status.ok()) {
-      // The device supports checkpointing, but we could not start it;
-      // log a warning, but do continue, since we can live without it.
-      LOG(WARNING) << "Failed to start filesystem checkpoint on device that "
-                      "should support it: "
-                   << checkpoint_status.error();
-    } else {
-      needsBackup = false;
-    }
-  }
-
-  if (needsBackup) {
+  if (!gSupportsFsCheckpoints) {
     Result<void> backup_status = BackupActivePackages();
-    if (!backup_status.ok()) {
+    if (!backup_status) {
+      // Do not proceed with staged install without backup
       return backup_status.error();
     }
   }
