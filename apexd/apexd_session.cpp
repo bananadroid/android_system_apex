@@ -150,18 +150,15 @@ std::vector<ApexSession> ApexSession::GetSessionsInState(
   return sessions;
 }
 
-Result<std::optional<ApexSession>> ApexSession::GetActiveSession() {
+std::vector<ApexSession> ApexSession::GetActiveSessions() {
   auto sessions = GetSessions();
-  std::optional<ApexSession> ret = std::nullopt;
+  std::vector<ApexSession> activeSessions;
   for (const ApexSession& session : sessions) {
-    if (!session.IsFinalized()) {
-      if (ret) {
-        return Error() << "More than one active session";
-      }
-      ret.emplace(session);
+    if (!session.IsFinalized() && session.GetState() != SessionState::UNKNOWN) {
+      activeSessions.push_back(session);
     }
   }
-  return ret;
+  return activeSessions;
 }
 
 SessionState::State ApexSession::GetState() const { return state_.state(); }
@@ -178,9 +175,9 @@ bool ApexSession::IsFinalized() const {
       [[fallthrough]];
     case SessionState::ACTIVATION_FAILED:
       [[fallthrough]];
-    case SessionState::ROLLED_BACK:
+    case SessionState::REVERTED:
       [[fallthrough]];
-    case SessionState::ROLLBACK_FAILED:
+    case SessionState::REVERT_FAILED:
       return true;
     default:
       return false;

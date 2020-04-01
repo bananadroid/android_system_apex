@@ -31,7 +31,8 @@ interface IApexService {
    ApexInfo[] getActivePackages();
    ApexInfo[] getAllPackages();
 
-   void abortActiveSession();
+   void abortStagedSession(int session_id);
+   void revertActiveSessions();
 
    /**
     * Copies the CE apex data directory for the given user to the backup
@@ -87,10 +88,5 @@ interface IApexService {
     * Not meant for use outside of testing. The call will not be
     * functional on user builds.
     */
-   void rollbackActiveSession();
-   /**
-    * Not meant for use outside of testing. The call will not be
-    * functional on user builds.
-    */
-   void resumeRollbackIfNeeded();
+   void resumeRevertIfNeeded();
 }
