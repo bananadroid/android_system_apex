@@ -31,7 +31,7 @@ namespace apex {
 
 class CheckpointInterface;
 
-android::base::Result<void> resumeRollbackIfNeeded();
+android::base::Result<void> resumeRevertIfNeeded();
 
 // Keep it for now to make otapreopt_chroot keep happy.
 // TODO(b/137086602): remove this function.
@@ -58,9 +58,9 @@ android::base::Result<void> markStagedSessionReady(const int session_id)
     WARN_UNUSED;
 android::base::Result<void> markStagedSessionSuccessful(const int session_id)
     WARN_UNUSED;
-android::base::Result<void> rollbackActiveSession(
+android::base::Result<void> revertActiveSession(
     const std::string& crashing_native_process);
-android::base::Result<void> rollbackActiveSessionAndReboot(
+android::base::Result<void> revertActiveSessionAndReboot(
     const std::string& crashing_native_process);
 
 android::base::Result<void> activatePackage(const std::string& full_path)
