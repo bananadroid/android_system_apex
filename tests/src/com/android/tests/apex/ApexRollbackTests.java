@@ -278,7 +278,7 @@ public class ApexRollbackTests extends BaseHostJUnit4Test {
     public void testFailingUserspaceReboot_doesNotRevertUpdate() throws Exception {
         assumeTrue("Device does not support updating APEX", mUtils.isApexUpdateSupported());
         assumeTrue("Device doesn't support userspace reboot",
-                getDevice().getBooleanProperty("ro.init.userspace_reboot.is_supported", false));
+                getDevice().getBooleanProperty("init.userspace_reboot.is_supported", false));
         assumeTrue("Device doesn't support fs checkpointing", supportsFsCheckpointing());
 
         File apexFile = mUtils.getTestFile("com.android.apex.cts.shim.v2.apex");
@@ -307,7 +307,7 @@ public class ApexRollbackTests extends BaseHostJUnit4Test {
     public void testUserspaceRebootFailedShutdownSequence_doesNotRevertUpdate() throws Exception {
         assumeTrue("Device does not support updating APEX", mUtils.isApexUpdateSupported());
         assumeTrue("Device doesn't support userspace reboot",
-                getDevice().getBooleanProperty("ro.init.userspace_reboot.is_supported", false));
+                getDevice().getBooleanProperty("init.userspace_reboot.is_supported", false));
         assumeTrue("Device doesn't support fs checkpointing", supportsFsCheckpointing());
 
         File apexFile = mUtils.getTestFile("com.android.apex.cts.shim.v2.apex");
@@ -340,7 +340,7 @@ public class ApexRollbackTests extends BaseHostJUnit4Test {
     public void testUserspaceRebootFailedRemount_revertsUpdate() throws Exception {
         assumeTrue("Device does not support updating APEX", mUtils.isApexUpdateSupported());
         assumeTrue("Device doesn't support userspace reboot",
-                getDevice().getBooleanProperty("ro.init.userspace_reboot.is_supported", false));
+                getDevice().getBooleanProperty("init.userspace_reboot.is_supported", false));
         assumeTrue("Device doesn't support fs checkpointing", supportsFsCheckpointing());
 
         File apexFile = mUtils.getTestFile("com.android.apex.cts.shim.v2.apex");
