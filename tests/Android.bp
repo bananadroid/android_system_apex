@@ -28,7 +28,7 @@ java_test_host {
         ":test_com.android.adbd",
     ],
     test_config: "adbd-e2e-tests.xml",
-    test_suites: ["general-tests"],
+    test_suites: ["device-tests"],
 }
 
 java_test_host {
@@ -42,7 +42,7 @@ java_test_host {
         ":test1_com.android.tzdata",
     ],
     test_config: "timezone-data-e2e-tests.xml",
-    test_suites: ["general-tests"],
+    test_suites: ["device-tests"],
 }
 
 java_test_host {
@@ -53,7 +53,7 @@ java_test_host {
         ":test_com.android.media",
     ],
     test_config: "media-e2e-tests.xml",
-    test_suites: ["general-tests"],
+    test_suites: ["device-tests"],
 }
 
 java_test_host {
@@ -64,7 +64,7 @@ java_test_host {
         ":test_com.android.media.swcodec",
     ],
     test_config: "media-swcodec-e2e-tests.xml",
-    test_suites: ["general-tests"],
+    test_suites: ["device-tests"],
 }
 
 java_test_host {
@@ -75,7 +75,7 @@ java_test_host {
         ":test_com.android.conscrypt",
     ],
     test_config: "conscrypt-e2e-tests.xml",
-    test_suites: ["general-tests"],
+    test_suites: ["device-tests"],
 }
 
 java_test_host {
@@ -86,7 +86,7 @@ java_test_host {
         ":test_com.android.neuralnetworks",
     ],
     test_config: "neuralnetworks-e2e-tests.xml",
-    test_suites: ["general-tests"],
+    test_suites: ["device-tests"],
 }
 
 java_test_host {
@@ -97,7 +97,7 @@ java_test_host {
         ":test_com.android.ipsec",
     ],
     test_config: "ipsec-e2e-tests.xml",
-    test_suites: ["general-tests"],
+    test_suites: ["device-tests"],
 }
 
 java_test_host {
@@ -109,7 +109,7 @@ java_test_host {
         ":test_com.android.sdkext",
     ],
     test_config: "sdkextensions-e2e-tests.xml",
-    test_suites: ["general-tests"],
+    test_suites: ["device-tests"],
 }
 
 java_test_host {
