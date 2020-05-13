@@ -1217,6 +1217,7 @@ Result<void> snapshotDataDirectory(const std::string& base_dir,
 /**
  * Restores snapshot from base_dir/apexrollback/<rollback id>/<apex name>
  * to base_dir/apexdata/<apex name>.
+ * Note the snapshot will be deleted after restoration succeeded.
  */
 Result<void> restoreDataDirectory(const std::string& base_dir,
                                   const int rollback_id,
@@ -1231,7 +1232,15 @@ Result<void> restoreDataDirectory(const std::string& base_dir,
   if (!result.ok()) {
     return result;
   }
-  return RestoreconPath(to_path);
+  result = RestoreconPath(to_path);
+  if (!result.ok()) {
+    return result;
+  }
+  result = DeleteDir(from_path);
+  if (!result.ok()) {
+    LOG(ERROR) << "Failed to delete the snapshot: " << result.error();
+  }
+  return {};
 }
 
 void snapshotOrRestoreDeIfNeeded(const std::string& base_dir,
