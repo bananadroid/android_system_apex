@@ -1687,6 +1687,9 @@ Result<void> unstagePackages(const std::vector<std::string>& paths) {
   // temporary folder and restore state from it in case unstagePackages fails.
 
   for (const std::string& path : paths) {
+    if (isPathForBuiltinApexes(path)) {
+      return Error() << "Can't uninstall pre-installed apex " << path;
+    }
     if (access(path.c_str(), F_OK) != 0) {
       return ErrnoError() << "Can't access " << path;
     }
