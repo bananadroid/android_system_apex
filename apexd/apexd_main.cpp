@@ -126,6 +126,8 @@ int main(int /*argc*/, char** argv) {
         android::apex::bootCompletedCleanup);
   }
 
+  android::apex::binder::AllowServiceShutdown();
+
   android::apex::binder::JoinThreadPool();
   return 1;
 }

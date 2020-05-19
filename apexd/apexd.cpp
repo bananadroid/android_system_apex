@@ -1687,6 +1687,9 @@ Result<void> unstagePackages(const std::vector<std::string>& paths) {
   // temporary folder and restore state from it in case unstagePackages fails.
 
   for (const std::string& path : paths) {
+    if (isPathForBuiltinApexes(path)) {
+      return Error() << "Can't uninstall pre-installed apex " << path;
+    }
     if (access(path.c_str(), F_OK) != 0) {
       return ErrnoError() << "Can't access " << path;
     }
@@ -1843,7 +1846,7 @@ Result<void> monitorBuiltinDirs() {
     }
     desc_to_dir.emplace(desc, dir);
   }
-  static std::thread th([fd, desc_to_dir]() -> void {
+  std::thread th([fd, desc_to_dir]() -> void {
     constexpr int num_events = 100;
     constexpr size_t average_path_length = 50;
     char buffer[num_events *
@@ -1875,6 +1878,7 @@ Result<void> monitorBuiltinDirs() {
       }
     }
   });
+  th.detach();
 
   return {};
 }
