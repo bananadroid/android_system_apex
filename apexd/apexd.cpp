@@ -2102,7 +2102,8 @@ void UnmountDanglingMounts() {
   RemoveObsoleteHashTrees();
 }
 
-// Removes APEXes on /data that don't have corresponding pre-installed version.
+// Removes APEXes on /data that don't have corresponding pre-installed version
+// or that are corrupt
 void RemoveOrphanedApexes() {
   auto data_apexes = FindApexFilesByName(kActiveApexPackagesDataDir);
   if (!data_apexes.ok()) {
@@ -2113,7 +2114,10 @@ void RemoveOrphanedApexes() {
   for (const auto& path : *data_apexes) {
     auto apex = ApexFile::Open(path);
     if (!apex.ok()) {
-      LOG(ERROR) << "Failed to open " << path << " : " << apex.error();
+      LOG(DEBUG) << "Removing corrupt APEX " << path << " : " << apex.error();
+      if (unlink(path.c_str()) != 0) {
+        PLOG(ERROR) << "Failed to unlink " << path;
+      }
       continue;
     }
     if (!ShouldActivateApexOnData(*apex)) {
