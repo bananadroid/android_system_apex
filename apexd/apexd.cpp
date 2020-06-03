@@ -511,9 +511,15 @@ Result<MountedApexData> VerifyAndTempMountPackage(
       return ErrnoError() << "Failed to unlink " << hashtree_file;
     }
   }
-  return MountPackageImpl(apex, mount_point, temp_device_name,
-                          GetHashTreeFileName(apex, /* is_new = */ true),
-                          /* verifyImage = */ true);
+  auto ret = MountPackageImpl(apex, mount_point, temp_device_name,
+                              hashtree_file, /* verifyImage = */ true);
+  if (!ret.ok()) {
+    LOG(DEBUG) << "Cleaning up " << hashtree_file;
+    if (TEMP_FAILURE_RETRY(unlink(hashtree_file.c_str())) != 0) {
+      PLOG(ERROR) << "Failed to unlink " << hashtree_file;
+    }
+  }
+  return ret;
 }
 
 Result<void> Unmount(const MountedApexData& data) {
