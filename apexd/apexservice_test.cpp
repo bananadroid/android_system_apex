@@ -738,7 +738,7 @@ TEST_F(ApexServiceTest, SubmitStagedSessionFailDoesNotLeakTempVerityDevices) {
   }
 }
 
-TEST_F(ApexServiceTest, StageSuccess_ClearsPreviouslyActivePackage) {
+TEST_F(ApexServiceTest, StageSuccessClearsPreviouslyActivePackage) {
   PrepareTestApexForInstall installer1(GetTestFile("apex.apexd_test_v2.apex"));
   PrepareTestApexForInstall installer2(
       GetTestFile("apex.apexd_test_different_app.apex"));
@@ -898,7 +898,7 @@ TEST_F(ApexServiceTest, RestoreCeData) {
       DirExists("/data/misc_ce/0/apexrollback/123456/apex.apexd_test"));
 }
 
-TEST_F(ApexServiceTest, DestroyDeSnapshots_DeSys) {
+TEST_F(ApexServiceTest, DestroyDeSnapshotsDeSys) {
   CreateDir("/data/misc/apexrollback/123456");
   CreateDir("/data/misc/apexrollback/123456/my.apex");
   CreateFile("/data/misc/apexrollback/123456/my.apex/hello.txt");
@@ -916,7 +916,7 @@ TEST_F(ApexServiceTest, DestroyDeSnapshots_DeSys) {
   ASSERT_FALSE(DirExists("/data/misc/apexrollback/123456"));
 }
 
-TEST_F(ApexServiceTest, DestroyDeSnapshots_DeUser) {
+TEST_F(ApexServiceTest, DestroyDeSnapshotsDeUser) {
   CreateDir("/data/misc_de/0/apexrollback/123456");
   CreateDir("/data/misc_de/0/apexrollback/123456/my.apex");
   CreateFile("/data/misc_de/0/apexrollback/123456/my.apex/hello.txt");
@@ -2821,7 +2821,7 @@ class LogTestToLogcat : public ::testing::EmptyTestEventListener {
     using base::StringPrintf;
     base::LogdLogger l;
     std::string msg =
-        StringPrintf("=== %s::%s (%s:%d)", test_info.test_case_name(),
+        StringPrintf("=== %s::%s (%s:%d)", test_info.test_suite_name(),
                      test_info.name(), test_info.file(), test_info.line());
     l(LogId::MAIN, LogSeverity::INFO, "ApexTestCases", __FILE__, __LINE__,
       msg.c_str());
