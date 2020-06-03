@@ -327,7 +327,8 @@ Result<void> readVerityDevice(const std::string& verity_device,
   static constexpr size_t kBufSize = 1024 * kBlockSize;
   std::vector<uint8_t> buffer(kBufSize);
 
-  unique_fd fd(TEMP_FAILURE_RETRY(open(verity_device.c_str(), O_RDONLY)));
+  unique_fd fd(
+      TEMP_FAILURE_RETRY(open(verity_device.c_str(), O_RDONLY | O_CLOEXEC)));
   if (fd.get() == -1) {
     return ErrnoError() << "Can't open " << verity_device;
   }
@@ -1081,7 +1082,7 @@ Result<void> emitApexInfoList() {
   const std::string fileName = fmt::format("{}/{}", kApexRoot, kApexInfoList);
 
   unique_fd fd(TEMP_FAILURE_RETRY(
-      open(fileName.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644)));
+      open(fileName.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0644)));
   if (fd.get() == -1) {
     return ErrnoErrorf("Can't open {}", fileName);
   }
