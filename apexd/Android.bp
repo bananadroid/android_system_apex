@@ -1,6 +1,7 @@
 // List of clang-tidy checks that are reported as errors.
 // Please keep this list ordered lexicographically.
 tidy_errors = [
+  "android-*",
   "bugprone-infinite-loop",
   "bugprone-macro-parentheses",
   "bugprone-misplaced-widening-cast",

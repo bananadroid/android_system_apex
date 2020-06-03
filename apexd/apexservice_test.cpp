@@ -527,7 +527,8 @@ Result<void> ReadDevice(const std::string& block_device) {
   static constexpr size_t kBufSize = 1024 * kBlockSize;
   std::vector<uint8_t> buffer(kBufSize);
 
-  unique_fd fd(TEMP_FAILURE_RETRY(open(block_device.c_str(), O_RDONLY)));
+  unique_fd fd(
+      TEMP_FAILURE_RETRY(open(block_device.c_str(), O_RDONLY | O_CLOEXEC)));
   if (fd.get() == -1) {
     return ErrnoError() << "Can't open " << block_device;
   }
@@ -1328,7 +1329,7 @@ TEST_F(ApexServiceTest, NoHashtreeApexStagePackagesMovesHashtree) {
   auto read_fn = [](const std::string& path) -> std::vector<uint8_t> {
     static constexpr size_t kBufSize = 4096;
     std::vector<uint8_t> buffer(kBufSize);
-    unique_fd fd(TEMP_FAILURE_RETRY(open(path.c_str(), O_RDONLY)));
+    unique_fd fd(TEMP_FAILURE_RETRY(open(path.c_str(), O_RDONLY | O_CLOEXEC)));
     if (fd.get() == -1) {
       PLOG(ERROR) << "Failed to open " << path;
       ADD_FAILURE();
