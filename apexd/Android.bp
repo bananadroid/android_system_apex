@@ -1,9 +1,21 @@
 // List of clang-tidy checks that are reported as errors.
 // Please keep this list ordered lexicographically.
 tidy_errors = [
+  "bugprone-infinite-loop",
+  "bugprone-macro-parentheses",
+  "bugprone-misplaced-widening-cast",
+  "bugprone-move-forwarding-reference",
+  "bugprone-sizeof-container",
+  "bugprone-sizeof-expression",
+  "bugprone-string-constructor",
+  "bugprone-terminating-continue",
+  "bugprone-undefined-memory-manipulation",
+  "bugprone-undelegated-constructor",
+  "bugprone-unused-raii",
   "cert-err34-c",
   "google-default-arguments",
   "google-explicit-constructor",
+  "google-readability-avoid-underscore-in-googletest-name",
   "google-runtime-int",
   "google-runtime-member-string-references",
   "misc-move-const-arg",
@@ -19,7 +31,9 @@ tidy_errors = [
   "performance-move-const-arg",
   "performance-move-constructor-init",
   "performance-noexcept-move-constructor",
+  "performance-unnecessary-copy-initialization",
   "performance-unnecessary-value-param",
+  "readability-avoid-const-params-in-decls",
 ]
 
 cc_defaults {
