@@ -136,11 +136,10 @@ BinderStatus ApexService::stagePackages(const std::vector<std::string>& paths) {
     return BinderStatus::ok();
   }
 
-  // TODO: Get correct binder error status.
   LOG(ERROR) << "Failed to stage " << android::base::Join(paths, ',') << ": "
              << res.error();
   return BinderStatus::fromExceptionCode(
-      BinderStatus::EX_ILLEGAL_ARGUMENT,
+      BinderStatus::EX_SERVICE_SPECIFIC,
       String8(res.error().message().c_str()));
 }
 
@@ -151,11 +150,10 @@ BinderStatus ApexService::unstagePackages(
     return BinderStatus::ok();
   }
 
-  // TODO: Get correct binder error status.
   LOG(ERROR) << "Failed to unstage " << android::base::Join(paths, ',') << ": "
              << res.error();
   return BinderStatus::fromExceptionCode(
-      BinderStatus::EX_ILLEGAL_ARGUMENT,
+      BinderStatus::EX_SERVICE_SPECIFIC,
       String8(res.error().message().c_str()));
 }
 
@@ -340,10 +338,9 @@ BinderStatus ApexService::activatePackage(const std::string& packagePath) {
     return BinderStatus::ok();
   }
 
-  // TODO: Get correct binder error status.
   LOG(ERROR) << "Failed to activate " << packagePath << ": " << res.error();
   return BinderStatus::fromExceptionCode(
-      BinderStatus::EX_ILLEGAL_ARGUMENT,
+      BinderStatus::EX_SERVICE_SPECIFIC,
       String8(res.error().message().c_str()));
 }
 
@@ -362,10 +359,9 @@ BinderStatus ApexService::deactivatePackage(const std::string& packagePath) {
     return BinderStatus::ok();
   }
 
-  // TODO: Get correct binder error status.
   LOG(ERROR) << "Failed to deactivate " << packagePath << ": " << res.error();
   return BinderStatus::fromExceptionCode(
-      BinderStatus::EX_ILLEGAL_ARGUMENT,
+      BinderStatus::EX_SERVICE_SPECIFIC,
       String8(res.error().message().c_str()));
 }
 
@@ -422,11 +418,10 @@ BinderStatus ApexService::preinstallPackages(
     return BinderStatus::ok();
   }
 
-  // TODO: Get correct binder error status.
   LOG(ERROR) << "Failed to preinstall packages "
              << android::base::Join(paths, ',') << ": " << res.error();
   return BinderStatus::fromExceptionCode(
-      BinderStatus::EX_ILLEGAL_ARGUMENT,
+      BinderStatus::EX_SERVICE_SPECIFIC,
       String8(res.error().message().c_str()));
 }
 
@@ -442,11 +437,10 @@ BinderStatus ApexService::postinstallPackages(
     return BinderStatus::ok();
   }
 
-  // TODO: Get correct binder error status.
   LOG(ERROR) << "Failed to postinstall packages "
              << android::base::Join(paths, ',') << ": " << res.error();
   return BinderStatus::fromExceptionCode(
-      BinderStatus::EX_ILLEGAL_ARGUMENT,
+      BinderStatus::EX_SERVICE_SPECIFIC,
       String8(res.error().message().c_str()));
 }
 
