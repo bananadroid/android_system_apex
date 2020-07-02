@@ -251,7 +251,7 @@ public class ApexdHostTest extends BaseHostJUnit4Test  {
 
         try {
             File apexFile = mTestUtils.getTestFile("com.android.apex.cts.shim.v2.apex");
-            String error = getDevice().installPackage(apexFile, false, "--wait");
+            String error = mTestUtils.installStagedPackage(apexFile);
             assertThat(error).isNull();
             String sessionId = getDevice().executeShellCommand(
                     "pm get-stagedsessions --only-ready --only-parent --only-sessionid").trim();
