@@ -1059,6 +1059,11 @@ std::vector<ApexFile> getActivePackages() {
 }
 
 Result<void> emitApexInfoList() {
+  // on a non-updatable device, we don't have APEX database to emit
+  if (!android::sysprop::ApexProperties::updatable().value_or(false)) {
+    return {};
+  }
+
   std::vector<com::android::apex::ApexInfo> apexInfos;
 
   auto convertToAutogen = [&apexInfos](const ApexFile& apex, bool isActive) {
