@@ -2239,6 +2239,7 @@ void RemoveOrphanedApexes() {
 void bootCompletedCleanup() {
   UnmountDanglingMounts();
   RemoveOrphanedApexes();
+  ApexSession::DeleteFinalizedSessions();
 }
 
 int unmountAll() {
