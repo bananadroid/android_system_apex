@@ -22,6 +22,7 @@ import static com.google.common.truth.Truth.assertWithMessage;
 import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
+import com.android.tests.rollback.host.AbandonSessionsRule;
 import com.android.tests.util.ModuleTestUtils;
 import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.device.ITestDevice.ApexInfo;
@@ -32,6 +33,7 @@ import com.android.tradefed.util.CommandStatus;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -45,12 +47,13 @@ import java.util.Set;
 @RunWith(DeviceJUnit4ClassRunner.class)
 public class ApexRollbackTests extends BaseHostJUnit4Test {
     private final ModuleTestUtils mUtils = new ModuleTestUtils(this);
+    @Rule
+    public AbandonSessionsRule mHostTestRule = new AbandonSessionsRule(this);
 
     private boolean mWasAdbRoot = false;
 
     @Before
     public void setUp() throws Exception {
-        mUtils.abandonActiveStagedSession();
         mUtils.uninstallShimApexIfNecessary();
         resetProperties();
         mWasAdbRoot = getDevice().isAdbRoot();
@@ -65,7 +68,6 @@ public class ApexRollbackTests extends BaseHostJUnit4Test {
      */
     @After
     public void tearDown() throws Exception {
-        mUtils.abandonActiveStagedSession();
         mUtils.uninstallShimApexIfNecessary();
         resetProperties();
         if (!mWasAdbRoot) {
