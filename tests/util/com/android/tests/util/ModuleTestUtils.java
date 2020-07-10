@@ -177,24 +177,6 @@ public class ModuleTestUtils {
     }
 
     /**
-     * Abandons any staged session that is marked {@code ready}
-     */
-    public void abandonActiveStagedSession() throws DeviceNotAvailableException {
-        CommandResult res = mTest.getDevice().executeShellV2Command("pm list staged-sessions "
-                + "--only-ready --only-parent --only-sessionid");
-        assertThat(res.getStderr()).isEqualTo("");
-        String activeSessionId = res.getStdout();
-        if (activeSessionId != null && !activeSessionId.equals("")) {
-            res = mTest.getDevice().executeShellV2Command("pm install-abandon "
-                    + activeSessionId);
-            if (!res.getStderr().equals("") || res.getStatus() != CommandStatus.SUCCESS) {
-                CLog.d("Failed to abandon session " + activeSessionId
-                        + " Error: " + res.getStderr());
-            }
-        }
-    }
-
-    /**
      * Uninstalls a shim apex only if its latest version is installed on /data partition
      *
      * <p>This is purely to optimize tests run time, since uninstalling an apex requires a reboot.
