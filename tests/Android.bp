@@ -24,17 +24,6 @@ java_defaults {
 }
 
 java_test_host {
-    name: "adbd_e2e_tests",
-    srcs:  ["src/**/AdbdHostTest.java"],
-    defaults: ["apex_e2e_test_defaults"],
-    data: [
-        ":test_com.android.adbd",
-    ],
-    test_config: "adbd-e2e-tests.xml",
-    test_suites: ["device-tests"],
-}
-
-java_test_host {
     name: "timezone_data_e2e_tests",
     srcs:  ["src/**/TimezoneDataHostTest.java"],
     defaults: ["apex_e2e_test_defaults"],
@@ -67,39 +56,6 @@ java_test_host {
         ":test_com.android.media.swcodec",
     ],
     test_config: "media-swcodec-e2e-tests.xml",
-    test_suites: ["device-tests"],
-}
-
-java_test_host {
-    name: "conscrypt_e2e_tests",
-    srcs:  ["src/**/ConscryptHostTest.java"],
-    defaults: ["apex_e2e_test_defaults"],
-    data: [
-        ":test_com.android.conscrypt",
-    ],
-    test_config: "conscrypt-e2e-tests.xml",
-    test_suites: ["device-tests"],
-}
-
-java_test_host {
-    name: "neuralnetworks_e2e_tests",
-    srcs:  ["src/**/NeuralNetworksHostTest.java"],
-    defaults: ["apex_e2e_test_defaults"],
-    data: [
-        ":test_com.android.neuralnetworks",
-    ],
-    test_config: "neuralnetworks-e2e-tests.xml",
-    test_suites: ["device-tests"],
-}
-
-java_test_host {
-    name: "ipsec_e2e_tests",
-    srcs:  ["src/**/IpSecHostTest.java"],
-    defaults: ["apex_e2e_test_defaults"],
-    data: [
-        ":test_com.android.ipsec",
-    ],
-    test_config: "ipsec-e2e-tests.xml",
     test_suites: ["device-tests"],
 }
 
