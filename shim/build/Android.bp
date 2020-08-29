@@ -55,7 +55,7 @@ apex {
   file_contexts: ":apex.test-file_contexts",
   key: "com.android.apex.cts.shim.key",
   prebuilts: ["hash_of_dev_null"],
-  apps: ["CtsShimPrebuilt", "CtsShimPrivPrebuilt"],
+  apps: ["CtsShim", "CtsShimPriv"],
   installable: false,
   allowed_files: "default_shim_allowed_list.txt",
 }
@@ -67,7 +67,18 @@ apex {
   file_contexts: ":apex.test-file_contexts",
   key: "com.android.apex.cts.shim.key",
   prebuilts: ["hash_of_dev_null"],
-  apps: ["CtsShimPrebuilt", "CtsShimPrivPrebuilt"],
+  apps: ["CtsShim", "CtsShimPriv"],
+  installable: false,
+  allowed_files: "default_shim_allowed_list.txt",
+}
+
+apex {
+  name: "com.android.apex.cts.shim.v2_without_apk_in_apex",
+  manifest: "manifest_v2.json",
+  androidManifest: "AndroidManifest.xml",
+  file_contexts: ":apex.test-file_contexts",
+  key: "com.android.apex.cts.shim.key",
+  prebuilts: ["hash_of_dev_null"],
   installable: false,
   allowed_files: "default_shim_allowed_list.txt",
 }
@@ -79,10 +90,29 @@ apex {
   file_contexts: ":apex.test-file_contexts",
   key: "com.android.apex.cts.shim.key",
   prebuilts: ["hash_of_dev_null"],
-  apps: ["CtsShimPrebuilt", "CtsShimPrivPrebuilt"],
+  apps: ["CtsShim", "CtsShimPriv"],
   installable: false,
   allowed_files: "default_shim_allowed_list.txt",
   test_only_no_hashtree: true,
+}
+
+apex {
+  name: "com.android.apex.cts.shim.v2_unsigned_payload",
+  manifest: "manifest_v2.json",
+  androidManifest: "AndroidManifest.xml",
+  file_contexts: ":apex.test-file_contexts",
+  key: "com.android.apex.cts.shim.key",
+  prebuilts: ["hash_of_dev_null"],
+  apps: ["CtsShim", "CtsShimPriv"],
+  installable: false,
+  allowed_files: "default_shim_allowed_list.txt",
+  test_only_unsigned_payload: true,
+}
+
+override_apex {
+    name: "com.android.apex.cts.shim.v2_different_package_name",
+    package_name: "com.android.apex.cts.shim.different",
+    base: "com.android.apex.cts.shim.v2",
 }
 
 genrule {
@@ -169,9 +199,11 @@ genrule {
   name: "generate_hash_v1",
   srcs: [
     ":com.android.apex.cts.shim.v2",
+    ":com.android.apex.cts.shim.v2_without_apk_in_apex",
     ":com.android.apex.cts.shim.v2_additional_file",
     ":com.android.apex.cts.shim.v2_additional_folder",
     ":com.android.apex.cts.shim.v2_different_certificate",
+    ":com.android.apex.cts.shim.v2_different_package_name",
     ":com.android.apex.cts.shim.v2_no_hashtree",
     ":com.android.apex.cts.shim.v2_signed_bob",
     ":com.android.apex.cts.shim.v2_signed_bob_rot",
@@ -179,6 +211,7 @@ genrule {
     ":com.android.apex.cts.shim.v2_with_pre_install_hook",
     ":com.android.apex.cts.shim.v2_with_post_install_hook",
     ":com.android.apex.cts.shim.v2_sdk_target_p",
+    ":com.android.apex.cts.shim.v2_apk_in_apex_sdk_target_p",
     ":com.android.apex.cts.shim.v3",
     ":com.android.apex.cts.shim.v3_signed_bob",
     ":com.android.apex.cts.shim.v3_signed_bob_rot",
@@ -201,8 +234,22 @@ apex {
   file_contexts: ":apex.test-file_contexts",
   key: "com.android.apex.cts.shim.key",
   prebuilts: ["hash_v1"],
-  apps: ["CtsShimPrebuilt", "CtsShimPrivPrebuilt"],
+  apps: ["CtsShim", "CtsShimPriv"],
   allowed_files: "default_shim_allowed_list.txt",
+}
+
+// This is to install the flattened version of com.android.apex.cts.shim.
+// Because com.android.apex.cts.shim is provided as prebuilt and the build system
+// doesn't support install "flattened" version from "prebult" yet, GSI, which should
+// have both "flatttened" and "unflattened" APEXes, is missing the flattened version
+// of com.android.apex.cts.shim.
+// TODO(b/159426728):  When the build system can install "flattened" from "prebuilts",
+// this can be removed.
+override_apex {
+  name: "com.android.apex.cts.shim.v1_with_prebuilts",
+  base: "com.android.apex.cts.shim.v1",
+  apps: ["CtsShimPrebuilt", "CtsShimPrivPrebuilt"],
+  allowed_files: "prebuilts_shim_allowed_list.txt",
 }
 
 genrule {
@@ -405,7 +452,7 @@ apex {
   file_contexts: ":apex.test-file_contexts",
   key: "com.android.apex.cts.shim.key",
   prebuilts: ["hash_of_dev_null"],
-  apps: ["CtsShimPrebuilt", "CtsShimPrivPrebuilt"],
+  apps: ["CtsShim", "CtsShimPriv"],
   installable: false,
   min_sdk_version: "29",
 }
@@ -427,5 +474,28 @@ apex {
   key: "com.android.apex.cts.shim.key",
   prebuilts: ["hash_of_dev_null"],
   installable: false,
-  apps: ["CtsShimPrebuilt", "CtsShimPrivPrebuilt"],
+  apps: ["CtsShim", "CtsShimPriv"],
+}
+
+// Apex shim with apk-in-apex that targets sdk P
+apex {
+  name: "com.android.apex.cts.shim.v2_apk_in_apex_sdk_target_p",
+  manifest: "manifest_v2.json",
+  androidManifest: "AndroidManifest.xml",
+  file_contexts: ":apex.test-file_contexts",
+  key: "com.android.apex.cts.shim.key",
+  prebuilts: ["hash_of_dev_null"],
+  apps: ["CtsShimTargetPSdk"],
+  installable: false,
+}
+
+// Apex shim with unsigned apk
+genrule {
+  name: "com.android.apex.cts.shim.v2_unsigned_apk_container",
+  srcs: [":com.android.apex.cts.shim.v2"],
+  out: ["com.android.apex.cts.shim.v2_unsigned_apk_container.apex"],
+  cmd: "cp -v $(in) $(out) && zip -d $(out) META-INF*",
+  dist: {
+    targets: ["apps_only"],
+  }
 }

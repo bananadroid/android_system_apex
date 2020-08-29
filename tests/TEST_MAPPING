@@ -7,22 +7,10 @@
       "name": "apex_targetprep_tests"
     },
     {
-      "name": "adbd_e2e_tests"
-    },
-    {
-      "name": "apexd_host_tests"
-    },
-    {
-      "name": "conscrypt_e2e_tests"
-    },
-    {
       "name": "sdkextensions_e2e_tests"
     },
     {
       "name": "timezone_data_e2e_tests"
-    },
-    {
-      "name": "ipsec_e2e_tests"
     }
   ],
   "postsubmit": [
@@ -35,29 +23,6 @@
     },
     {
       "name": "media_swcodec_e2e_tests",
-      "keywords": ["primary-device"]
-    },
-    // The following changes are in post-submit to restrict to physical
-    // devices (currently userspace reboot fails on cuttlefish).
-    // TODO(b/147726967): Remove when Userspace reboot works on cuttlefish
-    {
-      "name": "adbd_e2e_tests",
-      "keywords": ["primary-device"]
-    },
-    {
-      "name": "conscrypt_e2e_tests",
-      "keywords": ["primary-device"]
-    },
-    {
-      "name": "sdkextensions_e2e_tests",
-      "keywords": ["primary-device"]
-    },
-    {
-      "name": "timezone_data_e2e_tests",
-      "keywords": ["primary-device"]
-    },
-    {
-      "name": "ipsec_e2e_tests",
       "keywords": ["primary-device"]
     }
   ],

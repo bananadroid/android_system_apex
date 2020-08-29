@@ -141,7 +141,7 @@ static const std::vector<std::string> kBootstrapApexes = ([]() {
   return ret;
 })();
 
-static constexpr const int kNumRetriesWhenCheckpointingEnabled = 2;
+static constexpr const int kNumRetriesWhenCheckpointingEnabled = 1;
 
 bool isBootstrapApex(const ApexFile& apex) {
   return std::find(kBootstrapApexes.begin(), kBootstrapApexes.end(),
@@ -1238,7 +1238,7 @@ Result<ApexFile> getActivePackage(const std::string& packageName) {
  **/
 Result<void> abortStagedSession(int session_id) {
   auto session = ApexSession::GetSession(session_id);
-  if (!session) {
+  if (!session.ok()) {
     return Error() << "No session found with id " << session_id;
   }
   switch (session->GetState()) {
@@ -1318,7 +1318,7 @@ bool ShouldActivateApexOnData(const ApexFile& apex) {
 
 Result<void> scanPackagesDirAndActivate(const char* apex_package_dir) {
   auto apexes = ScanApexFiles(apex_package_dir);
-  if (!apexes.ok()) {
+  if (!apexes) {
     return apexes.error();
   }
   return ActivateApexPackages(*apexes);
@@ -1383,7 +1383,7 @@ void snapshotOrRestoreDeIfNeeded(const std::string& base_dir,
     for (const auto& apex_name : session.GetApexNames()) {
       Result<void> result =
           snapshotDataDirectory(base_dir, session.GetRollbackId(), apex_name);
-      if (!result.ok()) {
+      if (!result) {
         LOG(ERROR) << "Snapshot failed for " << apex_name << ": "
                    << result.error();
       }
@@ -1416,7 +1416,7 @@ void snapshotOrRestoreDeSysData() {
 int snapshotOrRestoreDeUserData() {
   auto user_dirs = GetDeUserDirs();
 
-  if (!user_dirs.ok()) {
+  if (!user_dirs) {
     LOG(ERROR) << "Error reading dirs " << user_dirs.error();
     return 1;
   }
@@ -1436,7 +1436,7 @@ Result<ino_t> snapshotCeData(const int user_id, const int rollback_id,
                              const std::string& apex_name) {
   auto base_dir = StringPrintf("%s/%d", kCeDataDir, user_id);
   Result<void> result = snapshotDataDirectory(base_dir, rollback_id, apex_name);
-  if (!result.ok()) {
+  if (!result) {
     return result.error();
   }
   auto ce_snapshot_path =
@@ -1457,7 +1457,7 @@ Result<void> migrateSessionsDirIfNeeded() {
   namespace fs = std::filesystem;
   auto from_path = std::string(kApexDataDir) + "/sessions";
   auto exists = PathExists(from_path);
-  if (!exists.ok()) {
+  if (!exists) {
     return Error() << "Failed to access " << from_path << ": "
                    << exists.error();
   }
@@ -1499,6 +1499,36 @@ Result<void> destroyDeSnapshots(const int rollback_id) {
     destroySnapshots(user_dir, rollback_id);
   }
 
+  return {};
+}
+
+/**
+ * Deletes all credential-encrypted snapshots for the given user, except for
+ * those listed in retain_rollback_ids.
+ */
+Result<void> destroyCeSnapshotsNotSpecified(
+    int user_id, const std::vector<int>& retain_rollback_ids) {
+  auto snapshot_root =
+      StringPrintf("%s/%d/%s", kCeDataDir, user_id, kApexSnapshotSubDir);
+  auto snapshot_dirs = GetSubdirs(snapshot_root);
+  if (!snapshot_dirs) {
+    return Error() << "Error reading snapshot dirs " << snapshot_dirs.error();
+  }
+
+  for (const auto& snapshot_dir : *snapshot_dirs) {
+    uint snapshot_id;
+    bool parse_ok = ParseUint(
+        std::filesystem::path(snapshot_dir).filename().c_str(), &snapshot_id);
+    if (parse_ok &&
+        std::find(retain_rollback_ids.begin(), retain_rollback_ids.end(),
+                  snapshot_id) == retain_rollback_ids.end()) {
+      Result<void> result = DeleteDir(snapshot_dir);
+      if (!result) {
+        return Error() << "Destroy CE snapshot failed for " << snapshot_dir
+                       << " : " << result.error();
+      }
+    }
+  }
   return {};
 }
 
@@ -1562,36 +1592,6 @@ void deleteDePreRestoreSnapshots(const ApexSession& session) {
   for (const auto& user_dir : *user_dirs) {
     deleteDePreRestoreSnapshots(user_dir, session);
   }
-}
-
-/**
- * Deletes all credential-encrypted snapshots for the given user, except for
- * those listed in retain_rollback_ids.
- */
-Result<void> destroyCeSnapshotsNotSpecified(
-    int user_id, const std::vector<int>& retain_rollback_ids) {
-  auto snapshot_root =
-      StringPrintf("%s/%d/%s", kCeDataDir, user_id, kApexSnapshotSubDir);
-  auto snapshot_dirs = GetSubdirs(snapshot_root);
-  if (!snapshot_dirs) {
-    return Error() << "Error reading snapshot dirs " << snapshot_dirs.error();
-  }
-
-  for (const auto& snapshot_dir : *snapshot_dirs) {
-    uint snapshot_id;
-    bool parse_ok = ParseUint(
-        std::filesystem::path(snapshot_dir).filename().c_str(), &snapshot_id);
-    if (parse_ok &&
-        std::find(retain_rollback_ids.begin(), retain_rollback_ids.end(),
-                  snapshot_id) == retain_rollback_ids.end()) {
-      Result<void> result = DeleteDir(snapshot_dir);
-      if (!result) {
-        return Error() << "Destroy CE snapshot failed for " << snapshot_dir
-                       << " : " << result.error();
-      }
-    }
-  }
-  return {};
 }
 
 void scanStagedSessionsDirAndStage() {
@@ -1684,7 +1684,7 @@ void scanStagedSessionsDirAndStage() {
     for (const auto& apex : apexes) {
       // TODO(b/158470836): Avoid opening ApexFile repeatedly.
       Result<ApexFile> apex_file = ApexFile::Open(apex);
-      if (!apex_file.ok()) {
+      if (!apex_file) {
         LOG(ERROR) << "Cannot open apex file during staging: " << apex;
         continue;
       }
@@ -1913,7 +1913,7 @@ Result<void> revertActiveSessions(const std::string& crashing_native_process) {
 Result<void> revertActiveSessionsAndReboot(
     const std::string& crashing_native_process) {
   auto status = revertActiveSessions(crashing_native_process);
-  if (!status) {
+  if (!status.ok()) {
     return status;
   }
   LOG(ERROR) << "Successfully reverted. Time to reboot device.";
@@ -2018,18 +2018,14 @@ void onStart() {
   // checkpointing.
   if (gSupportsFsCheckpoints) {
     Result<bool> needs_revert = gVoldService->NeedsRollback();
-    if (!needs_revert) {
+    if (!needs_revert.ok()) {
       LOG(ERROR) << "Failed to check if we need a revert: "
                  << needs_revert.error();
     } else if (*needs_revert) {
       LOG(INFO) << "Exceeded number of session retries ("
                 << kNumRetriesWhenCheckpointingEnabled
                 << "). Starting a revert";
-      Result<void> status = revertActiveSessions("");
-      if (!status) {
-        LOG(ERROR) << "Failed to revert (as requested by fs checkpointing) : "
-                   << status.error();
-      }
+      revertActiveSessions("");
     }
   }
 
@@ -2063,20 +2059,28 @@ void onStart() {
 
   if (auto ret = ActivateApexPackages(data_apex); !ret.ok()) {
     LOG(ERROR) << "Failed to activate packages from "
-               << kActiveApexPackagesDataDir << " : " << ret.error();
-    if (auto revert = revertActiveSessionsAndReboot(""); !revert.ok()) {
-      LOG(ERROR) << "Failed to revert : " << revert.error();
+               << kActiveApexPackagesDataDir << " : " << status.error();
+    Result<void> revert_status = revertActiveSessionsAndReboot("");
+    if (!revert_status.ok()) {
+      LOG(ERROR) << "Failed to revert : " << revert_status.error()
+                 << kActiveApexPackagesDataDir << " : " << ret.error();
     }
   }
 
   // Now also scan and activate APEXes from pre-installed directories.
   for (const auto& dir : kApexPackageBuiltinDirs) {
-    // TODO(b/123622800): if activation failed, revert and reboot.
-    status = scanPackagesDirAndActivate(dir.c_str());
-    if (!status) {
+    auto scan_status = ScanApexFiles(dir.c_str());
+    if (!scan_status.ok()) {
+      LOG(ERROR) << "Failed to scan APEX packages from " << dir << " : "
+                 << scan_status.error();
+      if (auto revert = revertActiveSessionsAndReboot(""); !revert.ok()) {
+        LOG(ERROR) << "Failed to revert : " << revert.error();
+      }
+    }
+    if (auto activate = ActivateApexPackages(*scan_status); !activate.ok()) {
       // This should never happen. Like **really** never.
       LOG(ERROR) << "Failed to activate packages from " << dir << " : "
-                 << status.error();
+                 << activate.error();
     }
   }
 
@@ -2131,7 +2135,7 @@ Result<std::vector<ApexFile>> submitStagedSession(
 
   if (!gSupportsFsCheckpoints) {
     Result<void> backup_status = BackupActivePackages();
-    if (!backup_status) {
+    if (!backup_status.ok()) {
       // Do not proceed with staged install without backup
       return backup_status.error();
     }

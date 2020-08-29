@@ -447,7 +447,7 @@ BinderStatus ApexService::postinstallPackages(
 BinderStatus ApexService::abortStagedSession(int session_id) {
   LOG(DEBUG) << "abortStagedSession() received by ApexService.";
   Result<void> res = ::android::apex::abortStagedSession(session_id);
-  if (!res) {
+  if (!res.ok()) {
     return BinderStatus::fromExceptionCode(
         BinderStatus::EX_ILLEGAL_ARGUMENT,
         String8(res.error().message().c_str()));
@@ -458,7 +458,7 @@ BinderStatus ApexService::abortStagedSession(int session_id) {
 BinderStatus ApexService::revertActiveSessions() {
   LOG(DEBUG) << "revertActiveSessions() received by ApexService.";
   Result<void> res = ::android::apex::revertActiveSessions("");
-  if (!res) {
+  if (!res.ok()) {
     return BinderStatus::fromExceptionCode(
         BinderStatus::EX_ILLEGAL_ARGUMENT,
         String8(res.error().message().c_str()));
@@ -474,7 +474,7 @@ BinderStatus ApexService::resumeRevertIfNeeded() {
 
   LOG(DEBUG) << "resumeRevertIfNeeded() received by ApexService.";
   Result<void> res = ::android::apex::resumeRevertIfNeeded();
-  if (!res) {
+  if (!res.ok()) {
     return BinderStatus::fromExceptionCode(
         BinderStatus::EX_ILLEGAL_ARGUMENT,
         String8(res.error().message().c_str()));

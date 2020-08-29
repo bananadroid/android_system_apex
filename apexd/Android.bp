@@ -310,7 +310,7 @@ genrule {
   tools: ["avbtool"],
   cmd: "unzip -q $(in) -d $(genDir) apex_payload.img && " +
        "$(location avbtool) print_partition_digests --image $(genDir)/apex_payload.img " +
-       "| cut -c 3-| tee $(out)" 
+       "| cut -c 3-| tee $(out)"
 }
 
 genrule {
@@ -321,7 +321,7 @@ genrule {
   tools: ["avbtool"],
   cmd: "unzip -q $(in) -d $(genDir) apex_payload.img && " +
        "$(location avbtool) print_partition_digests --image $(genDir)/apex_payload.img " +
-       "| cut -c 3-| tee $(out)"  
+       "| cut -c 3-| tee $(out)"
 }
 
 cc_test {
@@ -351,6 +351,7 @@ cc_test {
     ":apex.apexd_test_preinstall",
     ":apex.apexd_test_prepostinstall.fail",
     ":apex.apexd_test_v2",
+    ":apex.corrupted_b146895998",
     ":gen_manifest_mismatch_apex",
     ":gen_manifest_mismatch_apex_no_hashtree",
     ":gen_corrupt_superblock_apex",

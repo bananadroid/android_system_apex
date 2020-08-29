@@ -141,6 +141,13 @@ TEST_P(ApexFileTest, GetBundledPublicKey) {
   EXPECT_EQ(keyContent, apexFile->GetBundledPublicKey());
 }
 
+TEST(ApexFileTest, CorrutedApexB146895998) {
+  const std::string apex_path = testDataDir + "corrupted_b146895998.apex";
+  Result<ApexFile> apex = ApexFile::Open(apex_path);
+  ASSERT_RESULT_OK(apex);
+  ASSERT_FALSE(apex->VerifyApexVerity());
+}
+
 TEST_P(ApexFileTest, RetrieveFsType) {
   const std::string filePath = testDataDir + GetParam().prefix + ".apex";
   Result<ApexFile> apexFile = ApexFile::Open(filePath);
