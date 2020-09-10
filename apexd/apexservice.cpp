@@ -281,7 +281,8 @@ static ApexInfo getApexInfo(const ApexFile& package) {
   out.isFactory = package.IsBuiltin();
   out.isActive = false;
   Result<std::string> preinstalledPath =
-      getApexPreinstalledPath(package.GetManifest().name());
+      ApexPreinstalledData::GetInstance().GetPreinstalledPath(
+          package.GetManifest().name());
   if (preinstalledPath.ok()) {
     out.preinstalledModulePath = *preinstalledPath;
   }
@@ -577,7 +578,8 @@ BinderStatus ApexService::recollectPreinstalledData(
       !root.isOk()) {
     return root;
   }
-  if (auto res = ::android::apex::collectPreinstalledData(paths); !res) {
+  ApexPreinstalledData& instance = ApexPreinstalledData::GetInstance();
+  if (auto res = instance.Initialize(paths); !res) {
     return BinderStatus::fromExceptionCode(
         BinderStatus::EX_SERVICE_SPECIFIC,
         String8(res.error().message().c_str()));
