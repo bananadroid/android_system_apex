@@ -53,9 +53,6 @@ class ApexFile {
   const std::string& GetFsType() const { return fs_type_; }
   android::base::Result<ApexVerityData> VerifyApexVerity(
       const std::string& public_key) const;
-  // TODO(b/165948777): this doesn't seem to belong to ApexFile?
-  android::base::Result<void> VerifyManifestMatches(
-      const std::string& mount_path) const;
 
  private:
   ApexFile(const std::string& apex_path, int32_t image_offset,
@@ -75,12 +72,6 @@ class ApexFile {
   std::string apex_pubkey_;
   std::string fs_type_;
 };
-
-// TODO(b/165948777): this doesn't seem to belong to apex_file.h
-android::base::Result<std::vector<std::string>> FindApexes(
-    const std::vector<std::string>& paths);
-android::base::Result<std::vector<std::string>> FindApexFilesByName(
-    const std::string& path);
 
 }  // namespace apex
 }  // namespace android

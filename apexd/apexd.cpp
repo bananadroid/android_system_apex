@@ -44,6 +44,7 @@
 #include <android-base/stringprintf.h>
 #include <android-base/strings.h>
 #include <android-base/unique_fd.h>
+#include <google/protobuf/util/message_differencer.h>
 #include <libavb/libavb.h>
 #include <libdm/dm.h>
 #include <libdm/dm_table.h>
@@ -90,8 +91,8 @@ using android::dm::DeviceMapper;
 using android::dm::DmDeviceState;
 using android::dm::DmTable;
 using android::dm::DmTargetVerity;
-
 using apex::proto::SessionState;
+using google::protobuf::util::MessageDifferencer;
 
 namespace android {
 namespace apex {
@@ -341,9 +342,16 @@ Result<void> readVerityDevice(const std::string& verity_device,
 
 Result<void> VerifyMountedImage(const ApexFile& apex,
                                 const std::string& mount_point) {
-  auto result = apex.VerifyManifestMatches(mount_point);
-  if (!result.ok()) {
-    return result;
+  // Verify that apex_manifest.pb inside mounted image matches the one in the
+  // outer .apex container.
+  Result<ApexManifest> verified_manifest =
+      ReadManifest(mount_point + "/" + kManifestFilenamePb);
+  if (!verified_manifest.ok()) {
+    return verified_manifest.error();
+  }
+  if (!MessageDifferencer::Equals(*verified_manifest, apex.GetManifest())) {
+    return Errorf(
+        "Manifest inside filesystem does not match manifest outside it");
   }
   if (shim::IsShimApex(apex)) {
     return shim::ValidateShimApex(mount_point, apex);

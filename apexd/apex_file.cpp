@@ -30,7 +30,6 @@
 #include <android-base/scopeguard.h>
 #include <android-base/strings.h>
 #include <android-base/unique_fd.h>
-#include <google/protobuf/util/message_differencer.h>
 #include <libavb/libavb.h>
 #include <ziparchive/zip_archive.h>
 
@@ -38,12 +37,10 @@
 #include "apexd_utils.h"
 
 using android::base::borrowed_fd;
-using android::base::EndsWith;
 using android::base::Error;
 using android::base::ReadFullyAtOffset;
 using android::base::Result;
 using android::base::unique_fd;
-using google::protobuf::util::MessageDifferencer;
 
 namespace android {
 namespace apex {
@@ -362,54 +359,6 @@ Result<ApexVerityData> ApexFile::VerifyApexVerity(
   verityData.root_digest = getDigest(*verityData.desc, trailingData);
 
   return verityData;
-}
-
-Result<void> ApexFile::VerifyManifestMatches(
-    const std::string& mount_path) const {
-  Result<ApexManifest> verifiedManifest =
-      ReadManifest(mount_path + "/" + kManifestFilenamePb);
-  if (!verifiedManifest.ok()) {
-    return verifiedManifest.error();
-  }
-
-  if (!MessageDifferencer::Equals(manifest_, *verifiedManifest)) {
-    return Errorf(
-        "Manifest inside filesystem does not match manifest outside it");
-  }
-
-  return {};
-}
-
-Result<std::vector<std::string>> FindApexes(
-    const std::vector<std::string>& paths) {
-  std::vector<std::string> result;
-  for (const auto& path : paths) {
-    auto exist = PathExists(path);
-    if (!exist.ok()) {
-      return exist.error();
-    }
-    if (!*exist) continue;
-
-    const auto& apexes = FindApexFilesByName(path);
-    if (!apexes.ok()) {
-      return apexes;
-    }
-
-    result.insert(result.end(), apexes->begin(), apexes->end());
-  }
-  return result;
-}
-
-Result<std::vector<std::string>> FindApexFilesByName(const std::string& path) {
-  auto filter_fn = [](const std::filesystem::directory_entry& entry) {
-    std::error_code ec;
-    if (entry.is_regular_file(ec) &&
-        EndsWith(entry.path().filename().string(), kApexPackageSuffix)) {
-      return true;  // APEX file, take.
-    }
-    return false;
-  };
-  return ReadDir(path, filter_fn);
 }
 
 }  // namespace apex
