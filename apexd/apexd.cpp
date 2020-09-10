@@ -406,7 +406,14 @@ Result<MountedApexData> MountPackageImpl(const ApexFile& apex,
   }
   LOG(VERBOSE) << "Loopback device created: " << loopbackDevice.name;
 
-  auto verityData = apex.VerifyApexVerity();
+  auto& instance = ApexPreinstalledData::GetInstance();
+
+  auto public_key = instance.GetPublicKey(apex.GetManifest().name());
+  if (!public_key.ok()) {
+    return public_key.error();
+  }
+
+  auto verityData = apex.VerifyApexVerity(*public_key);
   if (!verityData.ok()) {
     return Error() << "Failed to verify Apex Verity data for " << full_path
                    << ": " << verityData.error();
@@ -421,7 +428,7 @@ Result<MountedApexData> MountPackageImpl(const ApexFile& apex,
   // dm-verity because they are already in the dm-verity protected partition;
   // system. However, note that we don't skip verification to ensure that APEXes
   // are correctly signed.
-  const bool mountOnVerity = !isPathForBuiltinApexes(full_path);
+  const bool mountOnVerity = !instance.IsPreInstalledApex(apex);
   DmVerityDevice verityDev;
   loop::LoopbackDeviceUniqueFd loop_for_hash;
   if (mountOnVerity) {
@@ -675,7 +682,13 @@ Result<void> ValidateStagingShimApex(const ApexFile& to) {
 // This function should only verification checks that are necessary to run on
 // each boot. Try to avoid putting expensive checks inside this function.
 Result<void> VerifyPackageBoot(const ApexFile& apex_file) {
-  Result<ApexVerityData> verity_or = apex_file.VerifyApexVerity();
+  // TODO(ioffe): why do we need this here?
+  auto& instance = ApexPreinstalledData::GetInstance();
+  auto public_key = instance.GetPublicKey(apex_file.GetManifest().name());
+  if (!public_key.ok()) {
+    return public_key.error();
+  }
+  Result<ApexVerityData> verity_or = apex_file.VerifyApexVerity(*public_key);
   if (!verity_or.ok()) {
     return verity_or.error();
   }
@@ -701,7 +714,6 @@ Result<void> VerifyPackageInstall(const ApexFile& apex_file) {
   if (!verify_package_boot_status.ok()) {
     return verify_package_boot_status;
   }
-  Result<ApexVerityData> verity_or = apex_file.VerifyApexVerity();
 
   constexpr const auto kSuccessFn = [](const std::string& /*mount_point*/) {
     return Result<void>{};
@@ -1121,9 +1133,10 @@ Result<void> emitApexInfoList() {
   std::vector<com::android::apex::ApexInfo> apexInfos;
 
   auto convertToAutogen = [&apexInfos](const ApexFile& apex, bool isActive) {
+    auto& instance = ApexPreinstalledData::GetInstance();
+
     auto preinstalledPath =
-        ApexPreinstalledData::GetInstance().GetPreinstalledPath(
-            apex.GetManifest().name());
+        instance.GetPreinstalledPath(apex.GetManifest().name());
     std::optional<std::string> preinstalledModulePath;
     if (preinstalledPath.ok()) {
       preinstalledModulePath = *preinstalledPath;
@@ -1131,7 +1144,7 @@ Result<void> emitApexInfoList() {
     com::android::apex::ApexInfo apexInfo(
         apex.GetManifest().name(), apex.GetPath(), preinstalledModulePath,
         apex.GetManifest().version(), apex.GetManifest().versionname(),
-        apex.IsBuiltin(), isActive);
+        instance.IsPreInstalledApex(apex), isActive);
     apexInfos.emplace_back(apexInfo);
   };
 
@@ -1832,11 +1845,12 @@ Result<void> unstagePackages(const std::vector<std::string>& paths) {
   LOG(DEBUG) << "unstagePackages() for " << Join(paths, ',');
 
   for (const std::string& path : paths) {
-    if (isPathForBuiltinApexes(path)) {
-      return Error() << "Can't uninstall pre-installed apex " << path;
+    auto apex = ApexFile::Open(path);
+    if (!apex.ok()) {
+      return apex.error();
     }
-    if (access(path.c_str(), F_OK) != 0) {
-      return ErrnoError() << "Can't access " << path;
+    if (ApexPreinstalledData::GetInstance().IsPreInstalledApex(*apex)) {
+      return Error() << "Can't uninstall pre-installed apex " << path;
     }
   }
 

@@ -106,5 +106,29 @@ TEST(ApexPreinstalledData, InitializeFailureSameNameDifferentKeys) {
               HasSubstr("does not match with previously scanned key"));
 }
 
+TEST(ApexPreinstalledData, IsPreInstalledApex) {
+  // Prepare test data.
+  TemporaryDir td;
+  fs::copy(GetTestFile("apex.apexd_test.apex"), td.path);
+
+  ApexPreinstalledData instance;
+  ASSERT_TRUE(IsOk(instance.Initialize({td.path})));
+
+  auto apex1 = ApexFile::Open(StringPrintf("%s/apex.apexd_test.apex", td.path));
+  ASSERT_TRUE(IsOk(apex1));
+  ASSERT_TRUE(instance.IsPreInstalledApex(*apex1));
+
+  // It's same apex, but path is different. Shouldn't be treated as
+  // pre-installed.
+  auto apex2 = ApexFile::Open(GetTestFile("apex.apexd_test.apex"));
+  ASSERT_TRUE(IsOk(apex2));
+  ASSERT_FALSE(instance.IsPreInstalledApex(*apex2));
+
+  auto apex3 =
+      ApexFile::Open(GetTestFile("apex.apexd_test_different_app.apex"));
+  ASSERT_TRUE(IsOk(apex3));
+  ASSERT_FALSE(instance.IsPreInstalledApex(*apex3));
+}
+
 }  // namespace apex
 }  // namespace android

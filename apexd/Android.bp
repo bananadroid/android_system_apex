@@ -207,6 +207,7 @@ cc_defaults {
   static: {
     whole_static_libs: ["libc++fs"],
   },
+  cpp_std: "experimental",
   shared: {
     static_libs: ["libc++fs"],
   },
