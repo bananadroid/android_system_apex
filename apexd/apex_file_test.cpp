@@ -93,7 +93,8 @@ TEST_P(ApexFileTest, GetApexManifest) {
 }
 
 TEST_P(ApexFileTest, VerifyApexVerity) {
-  ASSERT_RESULT_OK(collectPreinstalledData({"/system_ext/apex"}));
+  ApexPreinstalledData& instance = ApexPreinstalledData::GetInstance();
+  ASSERT_RESULT_OK(instance.Initialize({"/system_ext/apex"}));
   const std::string filePath = testDataDir + GetParam().prefix + ".apex";
   Result<ApexFile> apexFile = ApexFile::Open(filePath);
   ASSERT_RESULT_OK(apexFile);
