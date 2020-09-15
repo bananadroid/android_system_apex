@@ -19,6 +19,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include "apex_file.h"
 
 #include <android-base/result.h>
 
@@ -59,6 +60,9 @@ class ApexPreinstalledData final {
   // Checks whether there is a pre-installed version of an apex with the given
   // |name|.
   bool HasPreInstalledVersion(const std::string& name) const;
+
+  // Checks if given |apex| is pre-installed.
+  bool IsPreInstalledApex(const ApexFile& apex) const;
 
  private:
   // Non-copyable && non-moveable.

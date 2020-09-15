@@ -110,5 +110,13 @@ bool ApexPreinstalledData::HasPreInstalledVersion(
   return data_.find(name) != data_.end();
 }
 
+bool ApexPreinstalledData::IsPreInstalledApex(const ApexFile& apex) const {
+  auto it = data_.find(apex.GetManifest().name());
+  if (it == data_.end()) {
+    return false;
+  }
+  return it->second.path == apex.GetPath();
+}
+
 }  // namespace apex
 }  // namespace android

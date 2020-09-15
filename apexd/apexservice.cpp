@@ -267,16 +267,16 @@ void convertToApexSessionInfo(const ApexSession& session,
 }
 
 static ApexInfo getApexInfo(const ApexFile& package) {
+  auto& instance = ApexPreinstalledData::GetInstance();
   ApexInfo out;
   out.moduleName = package.GetManifest().name();
   out.modulePath = package.GetPath();
   out.versionCode = package.GetManifest().version();
   out.versionName = package.GetManifest().versionname();
-  out.isFactory = package.IsBuiltin();
+  out.isFactory = instance.IsPreInstalledApex(package);
   out.isActive = false;
   Result<std::string> preinstalledPath =
-      ApexPreinstalledData::GetInstance().GetPreinstalledPath(
-          package.GetManifest().name());
+      instance.GetPreinstalledPath(package.GetManifest().name());
   if (preinstalledPath.ok()) {
     out.preinstalledModulePath = *preinstalledPath;
   }
