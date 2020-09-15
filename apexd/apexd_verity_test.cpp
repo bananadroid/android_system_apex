@@ -45,7 +45,8 @@ static std::string GetTestFile(const std::string& name) {
 }
 
 TEST(ApexdVerityTest, ReusesHashtree) {
-  ASSERT_TRUE(IsOk(collectPreinstalledData({"/system_ext/apex"})));
+  ApexPreinstalledData& instance = ApexPreinstalledData::GetInstance();
+  ASSERT_TRUE(IsOk(instance.Initialize({"/system_ext/apex"})));
   TemporaryDir td;
 
   auto apex = ApexFile::Open(GetTestFile("apex.apexd_test_no_hashtree.apex"));
@@ -78,7 +79,8 @@ TEST(ApexdVerityTest, ReusesHashtree) {
 }
 
 TEST(ApexdVerityTest, RegenerateHashree) {
-  ASSERT_TRUE(IsOk(collectPreinstalledData({"/system_ext/apex"})));
+  ApexPreinstalledData& instance = ApexPreinstalledData::GetInstance();
+  ASSERT_TRUE(IsOk(instance.Initialize({"/system_ext/apex"})));
   TemporaryDir td;
 
   auto apex = ApexFile::Open(GetTestFile("apex.apexd_test_no_hashtree.apex"));

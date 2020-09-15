@@ -239,7 +239,10 @@ Result<void> verifyVbMetaSignature(const ApexFile& apex, const uint8_t* data,
       return Errorf("Unknown vmbeta_image_verify return value");
   }
 
-  Result<const std::string> public_key = getApexKey(apex.GetManifest().name());
+  auto& instance = ApexPreinstalledData::GetInstance();
+  // TODO(b/165948777): extract into verifier.
+  Result<const std::string> public_key =
+      instance.GetPublicKey(apex.GetManifest().name());
   if (public_key.ok()) {
     // TODO(b/115718846)
     // We need to decide whether we need rollback protection, and whether
