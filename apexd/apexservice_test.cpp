@@ -59,8 +59,8 @@
 #include "apexd_session.h"
 #include "apexd_test_utils.h"
 #include "apexd_utils.h"
-
 #include "session_state.pb.h"
+#include "string_log.h"
 
 using apex::proto::SessionState;
 
