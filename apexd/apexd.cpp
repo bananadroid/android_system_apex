@@ -1121,7 +1121,9 @@ Result<void> emitApexInfoList() {
   std::vector<com::android::apex::ApexInfo> apexInfos;
 
   auto convertToAutogen = [&apexInfos](const ApexFile& apex, bool isActive) {
-    auto preinstalledPath = getApexPreinstalledPath(apex.GetManifest().name());
+    auto preinstalledPath =
+        ApexPreinstalledData::GetInstance().GetPreinstalledPath(
+            apex.GetManifest().name());
     std::optional<std::string> preinstalledModulePath;
     if (preinstalledPath.ok()) {
       preinstalledModulePath = *preinstalledPath;
@@ -1311,7 +1313,8 @@ Result<void> ActivateApexPackages(const std::vector<ApexFile>& apexes) {
 }
 
 bool ShouldActivateApexOnData(const ApexFile& apex) {
-  return HasPreInstalledVersion(apex.GetManifest().name());
+  return ApexPreinstalledData::GetInstance().HasPreInstalledVersion(
+      apex.GetManifest().name());
 }
 
 }  // namespace
@@ -1937,16 +1940,17 @@ int onBootstrap() {
                << preAllocate.error();
   }
 
-  std::vector<std::string> bootstrap_apex_dirs{
+  ApexPreinstalledData& instance = ApexPreinstalledData::GetInstance();
+  static const std::vector<std::string> kBootstrapApexDirs{
       kApexPackageSystemDir, kApexPackageSystemExtDir, kApexPackageVendorDir};
-  Result<void> status = collectPreinstalledData(bootstrap_apex_dirs);
+  Result<void> status = instance.Initialize(kBootstrapApexDirs);
   if (!status.ok()) {
     LOG(ERROR) << "Failed to collect APEX keys : " << status.error();
     return 1;
   }
 
   // Activate built-in APEXes for processes launched before /data is mounted.
-  for (const auto& dir : bootstrap_apex_dirs) {
+  for (const auto& dir : kBootstrapApexDirs) {
     auto scan_status = ScanApexFiles(dir.c_str());
     if (!scan_status.ok()) {
       LOG(ERROR) << "Failed to scan APEX files in " << dir << " : "
@@ -1997,7 +2001,8 @@ void initializeVold(CheckpointInterface* checkpoint_service) {
 
 void initialize(CheckpointInterface* checkpoint_service) {
   initializeVold(checkpoint_service);
-  Result<void> status = collectPreinstalledData(kApexPackageBuiltinDirs);
+  ApexPreinstalledData& instance = ApexPreinstalledData::GetInstance();
+  Result<void> status = instance.Initialize(kApexPackageBuiltinDirs);
   if (!status.ok()) {
     LOG(ERROR) << "Failed to collect APEX keys : " << status.error();
     return;
