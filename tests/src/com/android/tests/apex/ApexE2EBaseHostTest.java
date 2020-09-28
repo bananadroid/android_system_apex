@@ -113,7 +113,7 @@ public abstract class ApexE2EBaseHostTest extends BaseHostJUnit4Test {
     protected final ApexInfo installApex(String filename) throws Exception {
         File testAppFile = mUtils.getTestFile(filename);
 
-        String installResult = getDevice().installPackage(testAppFile, false, "--wait");
+        String installResult = mUtils.installStagedPackage(testAppFile);
         assertWithMessage("failed to install test app %s. Reason: %s", filename, installResult)
                 .that(installResult).isNull();
 

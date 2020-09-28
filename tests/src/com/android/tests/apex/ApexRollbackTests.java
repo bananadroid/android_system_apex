@@ -100,7 +100,7 @@ public class ApexRollbackTests extends BaseHostJUnit4Test {
         // boot loop.
         assertThat(device.setProperty("persist.debug.trigger_watchdog.apex",
                 "com.android.apex.cts.shim@2")).isTrue();
-        String error = device.installPackage(apexFile, false, "--wait");
+        String error = mUtils.installStagedPackage(apexFile);
         assertThat(error).isNull();
 
         String sessionIdToCheck = device.executeShellCommand("pm get-stagedsessions --only-ready "
@@ -145,7 +145,7 @@ public class ApexRollbackTests extends BaseHostJUnit4Test {
         assertThat(device.setProperty("debug.trigger_reboot_once_after_activation",
                 "1")).isTrue();
 
-        String error = device.installPackage(apexFile, false, "--wait");
+        String error = mUtils.installStagedPackage(apexFile);
         assertThat(error).isNull();
 
         String sessionIdToCheck = device.executeShellCommand("pm get-stagedsessions --only-ready "
@@ -186,7 +186,7 @@ public class ApexRollbackTests extends BaseHostJUnit4Test {
                 "com.android.apex.cts.shim@2.apex")).isTrue();
         assertThat(device.setProperty("persist.debug.trigger_reboot_twice_after_activation",
                 "1")).isTrue();
-        String error = device.installPackage(apexFile, false, "--wait");
+        String error = mUtils.installStagedPackage(apexFile);
         assertThat(error).isNull();
 
         String sessionIdToCheck = device.executeShellCommand("pm get-stagedsessions --only-ready "
@@ -228,7 +228,7 @@ public class ApexRollbackTests extends BaseHostJUnit4Test {
                 "com.android.apex.cts.shim@2.apex")).isTrue();
         assertThat(device.setProperty("debug.trigger_reboot_once_after_activation",
                 "1")).isTrue();
-        String error = device.installPackage(apexFile, false, "--wait");
+        String error = mUtils.installStagedPackage(apexFile);
         assertThat(error).isNull();
 
         String sessionIdToCheck = device.executeShellCommand("pm get-stagedsessions --only-ready "
@@ -290,7 +290,7 @@ public class ApexRollbackTests extends BaseHostJUnit4Test {
         // Simulate failure in userspace reboot by triggering a full reboot in the middle of the
         // boot sequence.
         assertThat(getDevice().setProperty("test.apex_revert_test_force_reboot", "1")).isTrue();
-        String error = getDevice().installPackage(apexFile, false, "--wait");
+        String error = mUtils.installStagedPackage(apexFile);
         assertWithMessage("Failed to stage com.android.apex.cts.shim.v2.apex : %s", error).that(
                 error).isNull();
         // After we reboot the device, apexd will apply the update
@@ -320,7 +320,7 @@ public class ApexRollbackTests extends BaseHostJUnit4Test {
         // boot sequence.
         assertThat(getDevice().setProperty("test.apex_userspace_reboot_simulate_shutdown_failed",
                 "1")).isTrue();
-        String error = getDevice().installPackage(apexFile, false, "--wait");
+        String error = mUtils.installStagedPackage(apexFile);
         assertWithMessage("Failed to stage com.android.apex.cts.shim.v2.apex : %s", error).that(
                 error).isNull();
         // After the userspace reboot started, we simulate it's failure by rebooting device during
@@ -353,7 +353,7 @@ public class ApexRollbackTests extends BaseHostJUnit4Test {
         // boot sequence.
         assertThat(getDevice().setProperty("test.apex_userspace_reboot_simulate_remount_failed",
                 "1")).isTrue();
-        String error = getDevice().installPackage(apexFile, false, "--wait");
+        String error = mUtils.installStagedPackage(apexFile);
         assertWithMessage("Failed to stage com.android.apex.cts.shim.v2.apex : %s", error).that(
                 error).isNull();
         // After we reboot the device, apexd will apply the update
