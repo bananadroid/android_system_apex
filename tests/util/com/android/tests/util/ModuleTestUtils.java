@@ -120,6 +120,14 @@ public class ModuleTestUtils {
         throw new IOException("Cannot find " + testFileName);
     }
 
+    /**
+     * Installs packages using staged install flow and waits for pre-reboot verification to complete
+     */
+    public String installStagedPackage(File pkg) throws Exception {
+        return mTest.getDevice().installPackage(pkg, false,
+                "--staged", "--wait-for-staged-ready");
+    }
+
     private String runCmd(String cmd) {
         CLog.d("About to run command: %s", cmd);
         CommandResult result = mRunUtil.runTimedCmd(1000 * 60 * 5, cmd.split("\\s+"));
