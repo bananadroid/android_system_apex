@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 The Android Open Source Project
+ * Copyright (C) 2020 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,23 +16,28 @@
 
 #define LOG_TAG "apexd"
 
-#include "apexd_prop.h"
+#include "apexd_lifecycle.h"
 
 #include <android-base/logging.h>
 #include <android-base/properties.h>
 
 #include "apexd_utils.h"
 
-using android::base::GetBoolProperty;
 using android::base::GetProperty;
 using android::base::Result;
 using android::base::WaitForProperty;
 
 namespace android {
 namespace apex {
-void waitForBootStatus(Result<void> (&revert_fn)(const std::string&),
-                       void (&complete_fn)()) {
-  while (!GetBoolProperty("sys.boot_completed", false)) {
+
+bool ApexdLifecycle::isBooting() {
+  auto status = GetProperty(kApexStatusSysprop, "");
+  return status != kApexStatusReady && status != kApexStatusActivated;
+}
+
+void ApexdLifecycle::waitForBootStatus(
+    Result<void> (&revert_fn)(const std::string&)) {
+  while (!boot_completed_) {
     // Check for change in either crashing property or sys.boot_completed
     // Wait for updatable_crashing property change for most of the time
     // (arbitrary 30s), briefly check if boot has completed successfully,
@@ -59,15 +64,9 @@ void waitForBootStatus(Result<void> (&revert_fn)(const std::string&),
       }
     }
   }
-  // Wait for boot to complete, and then run complete_fn.
-  // TODO(b/158467962): this is a hack, instead we should have a binder call
-  //  from system_server into apexd when boot completes.
-  if (WaitForProperty("sys.boot_completed", "1", std::chrono::minutes(5))) {
-    complete_fn();
-    return;
-  } else {
-    LOG(ERROR) << "Boot never completed";
-  }
 }
+
+void ApexdLifecycle::markBootCompleted() { boot_completed_ = true; }
+
 }  // namespace apex
 }  // namespace android
