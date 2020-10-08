@@ -50,14 +50,23 @@ public class ApexdHostTest extends BaseHostJUnit4Test  {
 
     private final ModuleTestUtils mTestUtils = new ModuleTestUtils(this);
 
+    private boolean mWasAdbRoot = false;
+
     @Before
     public void setUp() throws Exception {
         mTestUtils.uninstallShimApexIfNecessary();
+        mWasAdbRoot = getDevice().isAdbRoot();
+        if (!mWasAdbRoot) {
+            assumeTrue("Device requires root", getDevice().enableAdbRoot());
+        }
     }
 
     @After
     public void tearDown() throws Exception {
         mTestUtils.uninstallShimApexIfNecessary();
+        if (!mWasAdbRoot) {
+            getDevice().disableAdbRoot();
+        }
     }
 
     @Test
