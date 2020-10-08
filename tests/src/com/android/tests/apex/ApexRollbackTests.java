@@ -46,11 +46,17 @@ import java.util.Set;
 public class ApexRollbackTests extends BaseHostJUnit4Test {
     private final ModuleTestUtils mUtils = new ModuleTestUtils(this);
 
+    private boolean mWasAdbRoot = false;
+
     @Before
     public void setUp() throws Exception {
         mUtils.abandonActiveStagedSession();
         mUtils.uninstallShimApexIfNecessary();
         resetProperties();
+        mWasAdbRoot = getDevice().isAdbRoot();
+        if (!mWasAdbRoot) {
+            assumeTrue("Requires root", getDevice().enableAdbRoot());
+        }
     }
 
     /**
@@ -62,6 +68,9 @@ public class ApexRollbackTests extends BaseHostJUnit4Test {
         mUtils.abandonActiveStagedSession();
         mUtils.uninstallShimApexIfNecessary();
         resetProperties();
+        if (!mWasAdbRoot) {
+            getDevice().disableAdbRoot();
+        }
     }
 
     private void resetProperties() throws Exception {
