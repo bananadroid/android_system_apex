@@ -1337,7 +1337,7 @@ bool ShouldActivateApexOnData(const ApexFile& apex) {
 
 Result<void> scanPackagesDirAndActivate(const char* apex_package_dir) {
   auto apexes = ScanApexFiles(apex_package_dir);
-  if (!apexes) {
+  if (!apexes.ok()) {
     return apexes.error();
   }
   return ActivateApexPackages(*apexes);
@@ -1402,7 +1402,7 @@ void snapshotOrRestoreDeIfNeeded(const std::string& base_dir,
     for (const auto& apex_name : session.GetApexNames()) {
       Result<void> result =
           snapshotDataDirectory(base_dir, session.GetRollbackId(), apex_name);
-      if (!result) {
+      if (!result.ok()) {
         LOG(ERROR) << "Snapshot failed for " << apex_name << ": "
                    << result.error();
       }
@@ -1435,7 +1435,7 @@ void snapshotOrRestoreDeSysData() {
 int snapshotOrRestoreDeUserData() {
   auto user_dirs = GetDeUserDirs();
 
-  if (!user_dirs) {
+  if (!user_dirs.ok()) {
     LOG(ERROR) << "Error reading dirs " << user_dirs.error();
     return 1;
   }
@@ -1455,7 +1455,7 @@ Result<ino_t> snapshotCeData(const int user_id, const int rollback_id,
                              const std::string& apex_name) {
   auto base_dir = StringPrintf("%s/%d", kCeDataDir, user_id);
   Result<void> result = snapshotDataDirectory(base_dir, rollback_id, apex_name);
-  if (!result) {
+  if (!result.ok()) {
     return result.error();
   }
   auto ce_snapshot_path =
@@ -1533,18 +1533,18 @@ void restorePreRestoreSnapshotsIfPresent(const std::string& base_dir,
   auto pre_restore_snapshot_path =
       StringPrintf("%s/%s/%d%s", base_dir.c_str(), kApexSnapshotSubDir,
                    session.GetRollbackId(), kPreRestoreSuffix);
-  if (PathExists(pre_restore_snapshot_path)) {
+  if (PathExists(pre_restore_snapshot_path).ok()) {
     for (const auto& apex_name : session.GetApexNames()) {
       Result<void> result = restoreDataDirectory(
           base_dir, session.GetRollbackId(), apex_name, true /* pre_restore */);
-      if (!result) {
+      if (!result.ok()) {
         LOG(ERROR) << "Restore of pre-restore snapshot failed for " << apex_name
                    << ": " << result.error();
       }
     }
 
     Result<void> result = DeleteDir(pre_restore_snapshot_path);
-    if (!result) {
+    if (!result.ok()) {
       LOG(ERROR) << "Deletion of pre-restore snapshot failed: "
                  << result.error();
     }
@@ -1555,7 +1555,7 @@ void restoreDePreRestoreSnapshotsIfPresent(const ApexSession& session) {
   restorePreRestoreSnapshotsIfPresent(kDeSysDataDir, session);
 
   auto user_dirs = GetDeUserDirs();
-  if (!user_dirs) {
+  if (!user_dirs.ok()) {
     LOG(ERROR) << "Error reading user dirs to restore pre-restore snapshots"
                << user_dirs.error();
   }
@@ -1571,7 +1571,7 @@ void deleteDePreRestoreSnapshots(const std::string& base_dir,
       StringPrintf("%s/%s/%d%s", base_dir.c_str(), kApexSnapshotSubDir,
                    session.GetRollbackId(), kPreRestoreSuffix);
   Result<void> result = DeleteDir(pre_restore_snapshot_path);
-  if (!result) {
+  if (!result.ok()) {
     LOG(ERROR) << "Deletion of pre-restore snapshot failed: " << result.error();
   }
 }
@@ -1580,7 +1580,7 @@ void deleteDePreRestoreSnapshots(const ApexSession& session) {
   deleteDePreRestoreSnapshots(kDeSysDataDir, session);
 
   auto user_dirs = GetDeUserDirs();
-  if (!user_dirs) {
+  if (!user_dirs.ok()) {
     LOG(ERROR) << "Error reading user dirs to delete pre-restore snapshots"
                << user_dirs.error();
   }
@@ -1685,7 +1685,7 @@ void scanStagedSessionsDirAndStage() {
     for (const auto& apex : apexes) {
       // TODO(b/158470836): Avoid opening ApexFile repeatedly.
       Result<ApexFile> apex_file = ApexFile::Open(apex);
-      if (!apex_file) {
+      if (!apex_file.ok()) {
         LOG(ERROR) << "Cannot open apex file during staging: " << apex;
         continue;
       }
@@ -1872,7 +1872,7 @@ Result<void> revertActiveSessions(const std::string& crashing_native_process) {
     }
     auto status =
         session.UpdateStateAndCommit(SessionState::REVERT_IN_PROGRESS);
-    if (!status) {
+    if (!status.ok()) {
       return Error() << "Revert of session " << session
                      << " failed : " << status.error();
     }
@@ -1884,7 +1884,7 @@ Result<void> revertActiveSessions(const std::string& crashing_native_process) {
       for (auto& session : activeSessions) {
         auto st = session.UpdateStateAndCommit(SessionState::REVERT_FAILED);
         LOG(DEBUG) << "Marking " << session << " as failed to revert";
-        if (!st) {
+        if (!st.ok()) {
           LOG(WARNING) << "Failed to mark session " << session
                        << " as failed to revert : " << st.error();
         }
@@ -1903,7 +1903,7 @@ Result<void> revertActiveSessions(const std::string& crashing_native_process) {
     }
 
     auto status = session.UpdateStateAndCommit(SessionState::REVERTED);
-    if (!status) {
+    if (!status.ok()) {
       LOG(WARNING) << "Failed to mark session " << session
                    << " as reverted : " << status.error();
     }
