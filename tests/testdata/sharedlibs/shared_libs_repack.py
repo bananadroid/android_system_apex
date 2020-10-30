@@ -246,19 +246,20 @@ def main(argv):
   payload_dir = extract_payload_from_img(container_files['apex_payload.img'],
                                          args.tmpdir)
   print(payload_dir)
-  libcpp = os.path.join(payload_dir, 'lib64', 'libc++.so')
+  libpath = 'lib64'
+  libcpp = os.path.join(payload_dir, libpath, 'libc++.so')
   if not os.path.exists(libcpp):
-    libcpp = os.path.join(payload_dir, 'lib', 'libc++.so')
+    libpath = 'lib'
+    libcpp = os.path.join(payload_dir, libpath, 'libc++.so')
   libcpp_hash = compute_sha512(libcpp)
   if args.mode == 'strip':
     # Stripping mode. Add a reference to the version of libc++.so to the
-    # requiredNativeLibs entry in the manifest, and remove lib64/libc++.so from
+    # sharedApexLibs entry in the manifest, and remove lib64/libc++.so from
     # the payload.
     pb = apex_manifest_pb2.ApexManifest()
     with open(container_files['apex_manifest.pb'], 'rb') as f:
       pb.ParseFromString(f.read())
-      pb.requireNativeLibs.append(
-          'com.android.apex.test.sharedlibs:libc++.so:' + libcpp_hash)
+      pb.sharedApexLibs.append('libc++.so:' + libcpp_hash)
       #
       # Example of resulting manifest -- use  print(MessageToString(pb)) :
       # name: "com.android.apex.test.foo"
@@ -266,31 +267,39 @@ def main(argv):
       # requireNativeLibs: "libc.so"
       # requireNativeLibs: "libdl.so"
       # requireNativeLibs: "libm.so"
-      # requireNativeLibs: "com.android.apex.test.sharedlibs:libc++.so:83d8f..."
+      # sharedApexLibs : "libc++.so:83d8f50..."
     with open(container_files['apex_manifest.pb'], 'wb') as f:
       f.write(pb.SerializeToString())
+    # Replace existing library with symlink
+    symlink_dst = os.path.join('/', 'apex',
+                               'com.android.apex.test.sharedlibs',
+                               libpath, 'libc++.so', libcpp_hash,
+                               'libc++.so')
     os.remove(libcpp)
+    os.system('ln -s {0} {1}'.format(symlink_dst, libcpp))
 
   if args.mode == 'sharedlibs':
     # We assume that libcpp exists in lib64/ or lib/. We'll move it to a
     # directory named lib/libc++.so/${SHA512_OF_LIBCPP}/
     #
-    tmpfile = os.path.join(os.path.dirname(libcpp), 'tmplibc++.so')
-    shutil.move(libcpp, tmpfile)
-    destdir = os.path.join(payload_dir, 'lib', 'libc++.so', libcpp_hash)
+    tmp_libcpp = os.path.join(payload_dir, libpath, 'libc++_backup.so')
+    shutil.move(libcpp, tmp_libcpp)
+    destdir = os.path.join(payload_dir, libpath, 'libc++.so', libcpp_hash)
     os.makedirs(destdir)
-    shutil.move(tmpfile, os.path.join(destdir, 'libc++.so'))
+    shutil.move(tmp_libcpp, os.path.join(destdir, 'libc++.so'))
 
     pb = apex_build_info_pb2.ApexBuildInfo()
     with open(container_files['apex_build_info.pb'], 'rb') as f:
       pb.ParseFromString(f.read())
 
     canned_fs_config = pb.canned_fs_config.decode('utf-8')
-    canned_fs_config += os.path.join('/', 'lib', 'libc++.so', libcpp_hash,
-                                     'libc++.so') + ' 1000 1000 0644\n'
-    canned_fs_config += '/lib 0 2000 0755\n'
-    canned_fs_config += '/lib/libc++.so 0 2000 0755\n'
-    canned_fs_config += '/lib/libc++.so/' + libcpp_hash + ' 0 2000 0755\n'
+    canned_fs_config += os.path.join('/', libpath, 'libc++.so',
+                                     libcpp_hash, 'libc++.so') + \
+                                     ' 1000 1000 0644\n'
+    canned_fs_config += '/' + libpath + ' 0 2000 0755\n'
+    canned_fs_config += '/' + libpath + '/libc++.so 0 2000 0755\n'
+    canned_fs_config += '/' + libpath + '/libc++.so/' + libcpp_hash + \
+                        ' 0 2000 0755\n'
     pb.canned_fs_config = canned_fs_config.encode('utf-8')
     with open(container_files['apex_build_info.pb'], 'wb') as f:
       f.write(pb.SerializeToString())
