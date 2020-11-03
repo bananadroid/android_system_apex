@@ -26,7 +26,6 @@ import com.android.internal.util.test.SystemPreparer;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.RuleChain;
@@ -80,7 +79,6 @@ public class SharedLibsApexTest extends BaseHostJUnit4Test {
      * one apex containing it and verifies that C++ binaries can run.
      */
     @Test
-    @Ignore("linkerconfig support not implemented yet")
     public void testInstallAndRunOptimizedApexs() throws Exception {
         assumeTrue("Device does not support updating APEX", mHostUtils.isApexUpdateSupported());
         assumeTrue("Device requires root", getDevice().isAdbRoot());
