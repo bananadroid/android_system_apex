@@ -12,26 +12,32 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-python_binary_host {
-    name: "shared_libs_repack",
-    srcs: [
-        "shared_libs_repack.py",
-    ],
-    version: {
-        py2: {
-            enabled: false,
-        },
-        py3: {
-            enabled: true,
-            embedded_launcher: true,
-        },
-    },
-    libs: [
-        "apex_build_info_proto",
-        "apex_manifest_proto",
-    ],
-    required: [
-        "apexer",
-        "signapk",
-    ],
+prebuilt_apex {
+  name: "com.android.apex.test.bar_prebuilt",
+  src: "com.android.apex.test.bar.apex",
+  filename: "com.android.apex.test.bar.apex",
+}
+
+prebuilt_apex {
+  name: "com.android.apex.test.bar_stripped_prebuilt",
+  src: "com.android.apex.test.bar_stripped.apex",
+  filename: "com.android.apex.test.bar_stripped.apex",
+}
+
+prebuilt_apex {
+  name: "com.android.apex.test.foo_prebuilt",
+  src: "com.android.apex.test.foo.apex",
+  filename: "com.android.apex.test.foo.apex",
+}
+
+prebuilt_apex {
+  name: "com.android.apex.test.foo_stripped_prebuilt",
+  src: "com.android.apex.test.foo_stripped.apex",
+  filename: "com.android.apex.test.foo_stripped.apex",
+}
+
+prebuilt_apex {
+  name: "com.android.apex.test.sharedlibs_generated_prebuilt",
+  src: "com.android.apex.test.sharedlibs_generated.apex",
+  filename: "com.android.apex.test.sharedlibs_generated.apex",
 }
