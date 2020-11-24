@@ -10,6 +10,10 @@ services and libraries, hardware abstraction layers
 
 The term "APEX" can also refer to an APEX file.
 
+This document describes technical details of the APEX file format. If you are
+looking at how to build an APEX package, kindly refer to [this how-to](howto.md)
+document.
+
 ## Background
 
 Although Android supports updates of modules that fit within the standard app
