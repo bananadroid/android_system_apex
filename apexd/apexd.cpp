@@ -1075,8 +1075,16 @@ Result<void> activateSharedLibsPackage(const std::string& mountPoint) {
   return {};
 }
 
+bool isValidPackageName(const std::string& package_name) {
+  return kBannedApexName.count(package_name) == 0;
+}
+
 Result<void> activatePackageImpl(const ApexFile& apex_file) {
   const ApexManifest& manifest = apex_file.GetManifest();
+
+  if (!isValidPackageName(manifest.name())) {
+    return Errorf("Package name {} is not allowed.", manifest.name());
+  }
 
   // See whether we think it's active, and do not allow to activate the same
   // version. Also detect whether this is the highest version.
