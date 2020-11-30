@@ -47,6 +47,7 @@ namespace apex {
 namespace {
 
 constexpr const char* kImageFilename = "apex_payload.img";
+constexpr const char* kCompressedApexFilename = "original_apex";
 constexpr const char* kBundledPublicKeyFilename = "apex_pubkey";
 
 struct FsMagic {
@@ -78,6 +79,8 @@ Result<ApexFile> ApexFile::Open(const std::string& path) {
   size_t image_size;
   std::string manifest_content;
   std::string pubkey;
+  Result<std::string> fs_type;
+  ZipEntry entry;
 
   unique_fd fd(open(path.c_str(), O_RDONLY | O_BINARY | O_CLOEXEC));
   if (fd < 0) {
@@ -94,20 +97,28 @@ Result<ApexFile> ApexFile::Open(const std::string& path) {
                    << ErrorCodeString(ret);
   }
 
-  // Locate the mountable image within the zipfile and store offset and size.
-  ZipEntry entry;
-  ret = FindEntry(handle, kImageFilename, &entry);
+  bool is_compressed = true;
+  ret = FindEntry(handle, kCompressedApexFilename, &entry);
   if (ret < 0) {
-    return Error() << "Could not find entry \"" << kImageFilename
-                   << "\" in package " << path << ": " << ErrorCodeString(ret);
+    is_compressed = false;
   }
-  image_offset = entry.offset;
-  image_size = entry.uncompressed_length;
 
-  auto fs_type = RetrieveFsType(fd, image_offset);
-  if (!fs_type.ok()) {
-    return Error() << "Failed to retrieve filesystem type for " << path << ": "
-                   << fs_type.error();
+  if (!is_compressed) {
+    // Locate the mountable image within the zipfile and store offset and size.
+    ret = FindEntry(handle, kImageFilename, &entry);
+    if (ret < 0) {
+      return Error() << "Could not find entry \"" << kImageFilename
+                     << "\" in package " << path << ": "
+                     << ErrorCodeString(ret);
+    }
+    image_offset = entry.offset;
+    image_size = entry.uncompressed_length;
+
+    fs_type = RetrieveFsType(fd, image_offset);
+    if (!fs_type.ok()) {
+      return Error() << "Failed to retrieve filesystem type for " << path
+                     << ": " << fs_type.error();
+    }
   }
 
   ret = FindEntry(handle, kManifestFilenamePb, &entry);
@@ -144,7 +155,7 @@ Result<ApexFile> ApexFile::Open(const std::string& path) {
   }
 
   return ApexFile(path, image_offset, image_size, std::move(*manifest), pubkey,
-                  *fs_type);
+                  *fs_type, is_compressed);
 }
 
 // AVB-related code.

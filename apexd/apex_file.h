@@ -53,17 +53,20 @@ class ApexFile {
   const std::string& GetFsType() const { return fs_type_; }
   android::base::Result<ApexVerityData> VerifyApexVerity(
       const std::string& public_key) const;
+  bool IsCompressed() const { return is_compressed_; }
 
  private:
   ApexFile(const std::string& apex_path, int32_t image_offset,
            size_t image_size, ApexManifest manifest,
-           const std::string& apex_pubkey, const std::string& fs_type)
+           const std::string& apex_pubkey, const std::string& fs_type,
+           bool is_compressed)
       : apex_path_(apex_path),
         image_offset_(image_offset),
         image_size_(image_size),
         manifest_(std::move(manifest)),
         apex_pubkey_(apex_pubkey),
-        fs_type_(fs_type) {}
+        fs_type_(fs_type),
+        is_compressed_(is_compressed) {}
 
   std::string apex_path_;
   int32_t image_offset_;
@@ -71,6 +74,7 @@ class ApexFile {
   ApexManifest manifest_;
   std::string apex_pubkey_;
   std::string fs_type_;
+  bool is_compressed_;
 };
 
 }  // namespace apex

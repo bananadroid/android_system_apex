@@ -383,7 +383,9 @@ cc_test {
     ":com.android.apex.cts.shim.v2_additional_folder_prebuilt",
     ":com.android.apex.cts.shim.v2_with_pre_install_hook_prebuilt",
     ":com.android.apex.cts.shim.v2_with_post_install_hook_prebuilt",
+    ":com.android.apex.compressed.v1",
     "apexd_testdata/com.android.apex.test_package.avbpubkey",
+    "apexd_testdata/com.android.apex.compressed.avbpubkey",
   ],
   srcs: [
     "apex_database_test.cpp",
