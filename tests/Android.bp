@@ -187,8 +187,11 @@ java_test_host {
         ":com.android.apex.test.foo_stripped.v2.libvY_prebuilt",
         ":com.android.apex.test.foo.v1.libvX_prebuilt",
         ":com.android.apex.test.foo.v2.libvY_prebuilt",
+        ":com.android.apex.test.pony_stripped.v1.libvZ_prebuilt",
+        ":com.android.apex.test.pony.v1.libvZ_prebuilt",
         ":com.android.apex.test.sharedlibs_generated.v1.libvX_prebuilt",
         ":com.android.apex.test.sharedlibs_generated.v2.libvY_prebuilt",
+        ":com.android.apex.test.sharedlibs_secondary_generated.v1.libvZ_prebuilt",
     ],
     static_libs: [
         "cts-install-lib-host",
