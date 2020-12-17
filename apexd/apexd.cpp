@@ -2244,7 +2244,7 @@ void onStart() {
 
   if (auto ret = ActivateApexPackages(data_apex); !ret.ok()) {
     LOG(ERROR) << "Failed to activate packages from "
-               << kActiveApexPackagesDataDir << " : " << status.error();
+               << kActiveApexPackagesDataDir << " : " << ret.error();
     Result<void> revert_status = revertActiveSessionsAndReboot("");
     if (!revert_status.ok()) {
       LOG(ERROR) << "Failed to revert : " << revert_status.error()
