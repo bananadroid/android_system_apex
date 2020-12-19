@@ -142,7 +142,7 @@ TEST(ApexFileTest, CorrutedApexB146895998) {
   const std::string apex_path = testDataDir + "corrupted_b146895998.apex";
   Result<ApexFile> apex = ApexFile::Open(apex_path);
   ASSERT_RESULT_OK(apex);
-  ASSERT_FALSE(apex->VerifyApexVerity("ignored"));
+  ASSERT_FALSE(apex->VerifyApexVerity("ignored").ok());
 }
 
 TEST_P(ApexFileTest, RetrieveFsType) {
