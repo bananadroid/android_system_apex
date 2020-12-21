@@ -1725,7 +1725,7 @@ void deleteDePreRestoreSnapshots(const ApexSession& session) {
 }
 
 void onBootCompleted() {
-  ApexdLifecycle::getInstance().markBootCompleted();
+  ApexdLifecycle::GetInstance().MarkBootCompleted();
   bootCompletedCleanup();
 }
 
