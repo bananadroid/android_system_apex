@@ -1640,7 +1640,7 @@ Result<void> destroyCeSnapshotsNotSpecified(
   auto snapshot_root =
       StringPrintf("%s/%d/%s", kCeDataDir, user_id, kApexSnapshotSubDir);
   auto snapshot_dirs = GetSubdirs(snapshot_root);
-  if (!snapshot_dirs) {
+  if (!snapshot_dirs.ok()) {
     return Error() << "Error reading snapshot dirs " << snapshot_dirs.error();
   }
 
@@ -1652,7 +1652,7 @@ Result<void> destroyCeSnapshotsNotSpecified(
         std::find(retain_rollback_ids.begin(), retain_rollback_ids.end(),
                   snapshot_id) == retain_rollback_ids.end()) {
       Result<void> result = DeleteDir(snapshot_dir);
-      if (!result) {
+      if (!result.ok()) {
         return Error() << "Destroy CE snapshot failed for " << snapshot_dir
                        << " : " << result.error();
       }
@@ -2534,7 +2534,7 @@ Result<void> remountPackages() {
   for (const std::string& apex : apexes) {
     // Since this is only used during development workflow, we are trying to
     // remount as many apexes as possible instead of failing fast.
-    if (auto ret = remountApexFile(apex); !ret) {
+    if (auto ret = remountApexFile(apex); !ret.ok()) {
       LOG(WARNING) << "Failed to remount " << apex << " : " << ret.error();
       failed.emplace_back(apex);
     }
