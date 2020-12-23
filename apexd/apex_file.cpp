@@ -386,5 +386,55 @@ Result<ApexVerityData> ApexFile::VerifyApexVerity(
   return verity_data;
 }
 
+Result<void> ApexFile::Decompress(const std::string& dest_path) const {
+  const std::string& src_path = GetPath();
+
+  // We should decompress compressed APEX files only
+  if (!IsCompressed()) {
+    return ErrnoError() << "Cannot decompress an uncompressed APEX";
+  }
+
+  // Get file descriptor of the compressed apex file
+  unique_fd src_fd(open(src_path.c_str(), O_RDONLY | O_CLOEXEC));
+  if (src_fd.get() == -1) {
+    return ErrnoError() << "Failed to open compressed APEX " << GetPath();
+  }
+
+  // Open it as a zip file
+  ZipArchiveHandle handle;
+  int ret = OpenArchiveFd(src_fd.get(), src_path.c_str(), &handle, false);
+  if (ret < 0) {
+    return Error() << "Failed to open package " << src_path << ": "
+                   << ErrorCodeString(ret);
+  }
+  auto handle_guard =
+      android::base::make_scope_guard([&handle] { CloseArchive(handle); });
+
+  // Find the original apex file inside the zip and extract to dest
+  ZipEntry entry;
+  ret = FindEntry(handle, kCompressedApexFilename, &entry);
+  if (ret < 0) {
+    return Error() << "Could not find entry \"" << kCompressedApexFilename
+                   << "\" in package " << src_path << ": "
+                   << ErrorCodeString(ret);
+  }
+
+  // Open destination file descriptor
+  unique_fd dest_fd(
+      open(dest_path.c_str(), O_WRONLY | O_CLOEXEC | O_CREAT, 0644));
+  if (dest_fd.get() == -1) {
+    return ErrnoError() << "Failed to open decompression destination "
+                        << GetPath();
+  }
+  ret = ExtractEntryToFile(handle, &entry, dest_fd.get());
+  if (ret < 0) {
+    return Error() << "Could not decompress to file " << dest_path
+                   << ErrorCodeString(ret);
+  }
+
+  LOG(VERBOSE) << "Decompressed " << src_path << " to " << dest_path;
+  return {};
+}
+
 }  // namespace apex
 }  // namespace android
