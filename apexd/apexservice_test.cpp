@@ -2111,7 +2111,7 @@ TEST_F(ApexServiceTest, BackupActivePackagesClearsPreviousBackup) {
   }
 
   // Make sure /data/apex/backups exists.
-  ASSERT_TRUE(IsOk(createDirIfNeeded(std::string(kApexBackupDir), 0700)));
+  ASSERT_TRUE(IsOk(CreateDirIfNeeded(std::string(kApexBackupDir), 0700)));
   // Create some bogus files in /data/apex/backups.
   std::ofstream old_backup(StringPrintf("%s/file1", kApexBackupDir));
   ASSERT_TRUE(old_backup.good());
@@ -2155,7 +2155,7 @@ TEST_F(ApexServiceTest, BackupActivePackagesZeroActivePackages) {
 
   // Make sure that /data/apex/active exists and is empty
   ASSERT_TRUE(
-      IsOk(createDirIfNeeded(std::string(kActiveApexPackagesDataDir), 0755)));
+      IsOk(CreateDirIfNeeded(std::string(kActiveApexPackagesDataDir), 0755)));
   auto active_pkgs = ReadEntireDir(kActiveApexPackagesDataDir);
   ASSERT_TRUE(IsOk(active_pkgs));
   ASSERT_EQ(0u, active_pkgs->size());
@@ -2254,7 +2254,7 @@ class ApexServiceRevertTest : public ApexServiceTest {
   void SetUp() override { ApexServiceTest::SetUp(); }
 
   void PrepareBackup(const std::vector<std::string>& pkgs) {
-    ASSERT_TRUE(IsOk(createDirIfNeeded(std::string(kApexBackupDir), 0700)));
+    ASSERT_TRUE(IsOk(CreateDirIfNeeded(std::string(kApexBackupDir), 0700)));
     for (const auto& pkg : pkgs) {
       PrepareTestApexForInstall installer(pkg);
       ASSERT_TRUE(installer.Prepare()) << " failed to prepare " << pkg;
