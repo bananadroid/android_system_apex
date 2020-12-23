@@ -542,7 +542,7 @@ BinderStatus ApexService::destroyCeSnapshotsNotSpecified(
   LOG(DEBUG) << "destroyCeSnapshotsNotSpecified() received by ApexService.";
   Result<void> res = ::android::apex::destroyCeSnapshotsNotSpecified(
       user_id, retain_rollback_ids);
-  if (!res) {
+  if (!res.ok()) {
     return BinderStatus::fromExceptionCode(
         BinderStatus::EX_SERVICE_SPECIFIC,
         String8(res.error().message().c_str()));
