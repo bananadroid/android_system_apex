@@ -82,7 +82,7 @@ class ApexService : public BnApexService {
   BinderStatus activatePackage(const std::string& package_path) override;
   BinderStatus deactivatePackage(const std::string& package_path) override;
   BinderStatus getActivePackages(std::vector<ApexInfo>* aidl_return) override;
-  BinderStatus getActivePackage(const std::string& packageName,
+  BinderStatus getActivePackage(const std::string& package_name,
                                 ApexInfo* aidl_return) override;
   BinderStatus getAllPackages(std::vector<ApexInfo>* aidl_return) override;
   BinderStatus preinstallPackages(
@@ -376,17 +376,17 @@ BinderStatus ApexService::getActivePackages(
     std::vector<ApexInfo>* aidl_return) {
   auto packages = ::android::apex::GetActivePackages();
   for (const auto& package : packages) {
-    ApexInfo apexInfo = GetApexInfo(package);
-    apexInfo.isActive = true;
-    aidl_return->push_back(std::move(apexInfo));
+    ApexInfo apex_info = GetApexInfo(package);
+    apex_info.isActive = true;
+    aidl_return->push_back(std::move(apex_info));
   }
 
   return BinderStatus::ok();
 }
 
-BinderStatus ApexService::getActivePackage(const std::string& packageName,
+BinderStatus ApexService::getActivePackage(const std::string& package_name,
                                            ApexInfo* aidl_return) {
-  Result<ApexFile> apex = ::android::apex::GetActivePackage(packageName);
+  Result<ApexFile> apex = ::android::apex::GetActivePackage(package_name);
   if (apex.ok()) {
     *aidl_return = GetApexInfo(*apex);
     aidl_return->isActive = true;
@@ -676,7 +676,7 @@ status_t ApexService::shellCommand(int in, int out, int err,
         << "  stagePackages [package_path1] ([package_path2]...) - stage "
            "multiple packages from the given path"
         << std::endl
-        << "  getActivePackage [packageName] - return info for active package "
+        << "  getActivePackage [package_name] - return info for active package "
            "with given name, if present"
         << std::endl
         << "  getAllPackages - return the list of all packages" << std::endl
