@@ -52,6 +52,7 @@ TEST(ApexPreinstalledDataTest, InitializeSuccess) {
   TemporaryDir td;
   fs::copy(GetTestFile("apex.apexd_test.apex"), td.path);
   fs::copy(GetTestFile("apex.apexd_test_different_app.apex"), td.path);
+  fs::copy(GetTestFile("com.android.apex.compressed.v1.capex"), td.path);
 
   ApexPreinstalledData instance;
   ASSERT_TRUE(IsOk(instance.Initialize({td.path})));
@@ -78,12 +79,14 @@ TEST(ApexPreinstalledDataTest, InitializeSuccess) {
 
   test_fn("apex.apexd_test.apex");
   test_fn("apex.apexd_test_different_app.apex");
+  test_fn("com.android.apex.compressed.v1.capex");
 
   // Check that second call will succeed as well.
   ASSERT_TRUE(IsOk(instance.Initialize({td.path})));
 
   test_fn("apex.apexd_test.apex");
   test_fn("apex.apexd_test_different_app.apex");
+  test_fn("com.android.apex.compressed.v1.capex");
 }
 
 TEST(ApexPreinstalledDataTest, InitializeFailureCorruptApex) {
@@ -149,9 +152,15 @@ TEST(ApexPreinstalledData, IsPreInstalledApex) {
   // Prepare test data.
   TemporaryDir td;
   fs::copy(GetTestFile("apex.apexd_test.apex"), td.path);
+  fs::copy(GetTestFile("com.android.apex.compressed.v1.capex"), td.path);
 
   ApexPreinstalledData instance;
   ASSERT_TRUE(IsOk(instance.Initialize({td.path})));
+
+  auto compressed_apex = ApexFile::Open(
+      StringPrintf("%s/com.android.apex.compressed.v1.capex", td.path));
+  ASSERT_TRUE(IsOk(compressed_apex));
+  ASSERT_TRUE(instance.IsPreInstalledApex(*compressed_apex));
 
   auto apex1 = ApexFile::Open(StringPrintf("%s/apex.apexd_test.apex", td.path));
   ASSERT_TRUE(IsOk(apex1));
