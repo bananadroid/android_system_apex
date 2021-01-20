@@ -402,10 +402,13 @@ Result<MountedApexData> MountPackageImpl(const ApexFile& apex,
 
   const std::string& full_path = apex.GetPath();
 
+  if (!apex.GetImageOffset() || !apex.GetImageSize()) {
+    return Error() << "Cannot create mount point without image offset and size";
+  }
   loop::LoopbackDeviceUniqueFd loopback_device;
   for (size_t attempts = 1;; ++attempts) {
     Result<loop::LoopbackDeviceUniqueFd> ret = loop::CreateLoopDevice(
-        full_path, apex.GetImageOffset(), apex.GetImageSize());
+        full_path, apex.GetImageOffset().value(), apex.GetImageSize().value());
     if (ret.ok()) {
       loopback_device = std::move(*ret);
       break;
@@ -490,8 +493,11 @@ Result<MountedApexData> MountPackageImpl(const ApexFile& apex,
     mount_flags |= MS_NOEXEC;
   }
 
-  if (mount(block_device.c_str(), mount_point.c_str(), apex.GetFsType().c_str(),
-            mount_flags, nullptr) == 0) {
+  if (!apex.GetFsType()) {
+    return Error() << "Cannot mount package without FsType";
+  }
+  if (mount(block_device.c_str(), mount_point.c_str(),
+            apex.GetFsType().value().c_str(), mount_flags, nullptr) == 0) {
     LOG(INFO) << "Successfully mounted package " << full_path << " on "
               << mount_point;
     auto status = VerifyMountedImage(apex, mount_point);

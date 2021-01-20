@@ -72,8 +72,8 @@ TEST_P(ApexFileTest, GetOffsetOfSimplePackage) {
     EXPECT_EQ(zip_image_size, entry.compressed_length);
   }
 
-  EXPECT_EQ(zip_image_offset, apex_file->GetImageOffset());
-  EXPECT_EQ(zip_image_size, apex_file->GetImageSize());
+  EXPECT_EQ(zip_image_offset, apex_file->GetImageOffset().value());
+  EXPECT_EQ(zip_image_size, apex_file->GetImageSize().value());
 }
 
 TEST(ApexFileTest, GetOffsetMissingFile) {
@@ -152,7 +152,7 @@ TEST_P(ApexFileTest, RetrieveFsType) {
   Result<ApexFile> apex_file = ApexFile::Open(file_path);
   ASSERT_TRUE(apex_file.ok());
 
-  EXPECT_EQ(std::string(GetParam().type), apex_file->GetFsType());
+  EXPECT_EQ(std::string(GetParam().type), apex_file->GetFsType().value());
 }
 
 TEST(ApexFileTest, OpenInvalidFilesystem) {
@@ -180,9 +180,9 @@ TEST(ApexFileTest, OpenCompressedApexFile) {
   rc = FindEntry(handle, "original_apex", &entry);
   ASSERT_EQ(0, rc);
 
-  ASSERT_EQ(0, apex_file->GetImageOffset());
-  ASSERT_EQ(0, apex_file->GetImageOffset());
-  ASSERT_EQ("", apex_file->GetFsType());
+  ASSERT_FALSE(apex_file->GetImageOffset().has_value());
+  ASSERT_FALSE(apex_file->GetImageSize().has_value());
+  ASSERT_FALSE(apex_file->GetFsType().has_value());
 }
 
 TEST(ApexFileTest, GetCompressedApexManifest) {
