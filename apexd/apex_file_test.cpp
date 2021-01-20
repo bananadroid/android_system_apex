@@ -170,19 +170,19 @@ TEST(ApexFileTest, OpenCompressedApexFile) {
   Result<ApexFile> apex_file = ApexFile::Open(file_path);
   ASSERT_TRUE(apex_file.ok());
 
-  ZipArchiveHandle handle;
-  int32_t rc = OpenArchive(file_path.c_str(), &handle);
-  ASSERT_EQ(0, rc);
-  auto close_guard =
-      android::base::make_scope_guard([&handle]() { CloseArchive(handle); });
-
-  ZipEntry entry;
-  rc = FindEntry(handle, "original_apex", &entry);
-  ASSERT_EQ(0, rc);
-
+  ASSERT_TRUE(apex_file->IsCompressed());
   ASSERT_FALSE(apex_file->GetImageOffset().has_value());
   ASSERT_FALSE(apex_file->GetImageSize().has_value());
   ASSERT_FALSE(apex_file->GetFsType().has_value());
+}
+
+TEST(ApexFileTest, OpenFailureForCompressedApexWithoutApex) {
+  const std::string file_path =
+      kTestDataDir + "com.android.apex.compressed.v1_without_apex.capex";
+  Result<ApexFile> apex_file = ApexFile::Open(file_path);
+  ASSERT_FALSE(apex_file.ok());
+  ASSERT_THAT(apex_file.error().message(),
+              testing::HasSubstr("Could not find entry"));
 }
 
 TEST(ApexFileTest, GetCompressedApexManifest) {
@@ -207,6 +207,18 @@ TEST(ApexFileTest, GetBundledPublicKeyOfCompressedApex) {
       << "Failed to read " << key_path;
 
   EXPECT_EQ(key_content, apex_file->GetBundledPublicKey());
+}
+
+TEST(ApexFileTest, CannotVerifyApexVerityForCompressedApex) {
+  const std::string file_path =
+      kTestDataDir + "com.android.apex.compressed.v1.capex";
+  auto apex = ApexFile::Open(file_path);
+  ASSERT_RESULT_OK(apex);
+  auto result = apex->VerifyApexVerity(apex->GetBundledPublicKey());
+  ASSERT_FALSE(result.ok());
+  ASSERT_THAT(
+      result.error().message(),
+      ::testing::HasSubstr("Cannot verify ApexVerity of compressed APEX"));
 }
 
 }  // namespace

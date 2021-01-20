@@ -108,6 +108,7 @@ Result<ApexFile> ApexFile::Open(const std::string& path) {
     ret = FindEntry(handle, kImageFilename, &entry);
     if (ret < 0) {
       return Error() << "Could not find entry \"" << kImageFilename
+                     << "\" or \"" << kCompressedApexFilename
                      << "\" in package " << path << ": "
                      << ErrorCodeString(ret);
     }
@@ -339,6 +340,10 @@ Result<std::unique_ptr<AvbHashtreeDescriptor>> VerifyDescriptor(
 
 Result<ApexVerityData> ApexFile::VerifyApexVerity(
     const std::string& public_key) const {
+  if (IsCompressed()) {
+    return Error() << "Cannot verify ApexVerity of compressed APEX";
+  }
+
   ApexVerityData verity_data;
 
   unique_fd fd(open(GetPath().c_str(), O_RDONLY | O_CLOEXEC));

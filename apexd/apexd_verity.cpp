@@ -154,6 +154,10 @@ Result<std::string> CalculateRootDigest(const std::string& hashtree_file,
 Result<PrepareHashTreeResult> PrepareHashTree(
     const ApexFile& apex, const ApexVerityData& verity_data,
     const std::string& hashtree_file) {
+  if (apex.IsCompressed()) {
+    return Error() << "Cannot prepare HashTree of compressed APEX";
+  }
+
   if (auto st = CreateDirIfNeeded(kApexHashTreeDir, 0700); !st.ok()) {
     return st.error();
   }
