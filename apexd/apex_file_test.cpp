@@ -26,6 +26,8 @@
 #include <ziparchive/zip_archive.h>
 
 #include "apex_file.h"
+#include "apexd_test_utils.h"
+#include "apexd_utils.h"
 
 using android::base::GetExecutableDirectory;
 using android::base::Result;
@@ -46,7 +48,7 @@ constexpr const ApexFileTestParam kParameters[] = {
 
 class ApexFileTest : public ::testing::TestWithParam<ApexFileTestParam> {};
 
-INSTANTIATE_TEST_SUITE_P(Apex, ApexFileTest, testing::ValuesIn(kParameters));
+INSTANTIATE_TEST_SUITE_P(Apex, ApexFileTest, ::testing::ValuesIn(kParameters));
 
 TEST_P(ApexFileTest, GetOffsetOfSimplePackage) {
   const std::string file_path = kTestDataDir + GetParam().prefix + ".apex";
@@ -81,7 +83,7 @@ TEST(ApexFileTest, GetOffsetMissingFile) {
   Result<ApexFile> apex_file = ApexFile::Open(file_path);
   ASSERT_FALSE(apex_file.ok());
   ASSERT_THAT(apex_file.error().message(),
-              testing::HasSubstr("Failed to open package"));
+              ::testing::HasSubstr("Failed to open package"));
 }
 
 TEST_P(ApexFileTest, GetApexManifest) {
@@ -161,7 +163,7 @@ TEST(ApexFileTest, OpenInvalidFilesystem) {
   Result<ApexFile> apex_file = ApexFile::Open(file_path);
   ASSERT_FALSE(apex_file.ok());
   ASSERT_THAT(apex_file.error().message(),
-              testing::HasSubstr("Failed to retrieve filesystem type"));
+              ::testing::HasSubstr("Failed to retrieve filesystem type"));
 }
 
 TEST(ApexFileTest, OpenCompressedApexFile) {
@@ -182,7 +184,7 @@ TEST(ApexFileTest, OpenFailureForCompressedApexWithoutApex) {
   Result<ApexFile> apex_file = ApexFile::Open(file_path);
   ASSERT_FALSE(apex_file.ok());
   ASSERT_THAT(apex_file.error().message(),
-              testing::HasSubstr("Could not find entry"));
+              ::testing::HasSubstr("Could not find entry"));
 }
 
 TEST(ApexFileTest, GetCompressedApexManifest) {
@@ -219,6 +221,50 @@ TEST(ApexFileTest, CannotVerifyApexVerityForCompressedApex) {
   ASSERT_THAT(
       result.error().message(),
       ::testing::HasSubstr("Cannot verify ApexVerity of compressed APEX"));
+}
+
+TEST(ApexFileTest, DecompressCompressedApex) {
+  const std::string file_path =
+      kTestDataDir + "com.android.apex.compressed.v1.capex";
+  Result<ApexFile> apex_file = ApexFile::Open(file_path);
+  ASSERT_RESULT_OK(apex_file);
+
+  // Create a temp dir for decompression
+  TemporaryDir tmp_dir;
+
+  const std::string package_name = apex_file->GetManifest().name();
+  const std::string decompression_file_path =
+      tmp_dir.path + package_name + ".capex";
+
+  auto result = apex_file->Decompress(decompression_file_path);
+  ASSERT_RESULT_OK(result);
+
+  // Assert output path is not empty
+  auto exists = PathExists(decompression_file_path);
+  ASSERT_RESULT_OK(exists);
+  ASSERT_TRUE(*exists) << decompression_file_path << " does not exist";
+
+  // Assert that decompressed apex is same as original apex
+  const std::string original_apex_file_path =
+      kTestDataDir + "com.android.apex.compressed.v1_original.apex";
+  auto comparison_result =
+      CompareFiles(original_apex_file_path, decompression_file_path);
+  ASSERT_RESULT_OK(comparison_result);
+  ASSERT_TRUE(*comparison_result);
+}
+
+TEST(ApexFileTest, DecompressFailForNormalApex) {
+  const std::string file_path =
+      kTestDataDir + "com.android.apex.compressed.v1_original.apex";
+  Result<ApexFile> apex_file = ApexFile::Open(file_path);
+  ASSERT_RESULT_OK(apex_file);
+
+  TemporaryFile decompression_file_path;
+
+  auto result = apex_file->Decompress(decompression_file_path.path);
+  ASSERT_FALSE(result.ok());
+  ASSERT_THAT(result.error().message(),
+              ::testing::HasSubstr("Cannot decompress an uncompressed APEX"));
 }
 
 }  // namespace
