@@ -79,7 +79,10 @@ Result<void> GenerateHashTree(const ApexFile& apex,
     return Error() << "Invalid image size " << image_size;
   }
 
-  if (lseek(fd, apex.GetImageOffset(), SEEK_SET) == -1) {
+  if (!apex.GetImageOffset()) {
+    return Error() << "Cannot generate HashTree without image offset";
+  }
+  if (lseek(fd, apex.GetImageOffset().value(), SEEK_SET) == -1) {
     return ErrnoError() << "Failed to seek";
   }
 

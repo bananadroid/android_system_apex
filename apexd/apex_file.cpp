@@ -75,11 +75,11 @@ Result<std::string> RetrieveFsType(borrowed_fd fd, int32_t image_offset) {
 }  // namespace
 
 Result<ApexFile> ApexFile::Open(const std::string& path) {
-  int32_t image_offset;
-  size_t image_size;
+  std::optional<int32_t> image_offset;
+  std::optional<size_t> image_size;
   std::string manifest_content;
   std::string pubkey;
-  Result<std::string> fs_type;
+  std::optional<std::string> fs_type;
   ZipEntry entry;
 
   unique_fd fd(open(path.c_str(), O_RDONLY | O_BINARY | O_CLOEXEC));
@@ -114,11 +114,12 @@ Result<ApexFile> ApexFile::Open(const std::string& path) {
     image_offset = entry.offset;
     image_size = entry.uncompressed_length;
 
-    fs_type = RetrieveFsType(fd, image_offset);
-    if (!fs_type.ok()) {
+    auto fs_type_result = RetrieveFsType(fd, image_offset.value());
+    if (!fs_type_result.ok()) {
       return Error() << "Failed to retrieve filesystem type for " << path
-                     << ": " << fs_type.error();
+                     << ": " << fs_type_result.error();
     }
+    fs_type = std::move(*fs_type_result);
   }
 
   ret = FindEntry(handle, kManifestFilenamePb, &entry);
@@ -155,7 +156,7 @@ Result<ApexFile> ApexFile::Open(const std::string& path) {
   }
 
   return ApexFile(path, image_offset, image_size, std::move(*manifest), pubkey,
-                  *fs_type, is_compressed);
+                  fs_type, is_compressed);
 }
 
 // AVB-related code.
@@ -195,7 +196,11 @@ Result<std::unique_ptr<AvbFooter>> GetAvbFooter(const ApexFile& apex,
   auto footer = std::make_unique<AvbFooter>();
 
   // The AVB footer is located in the last part of the image
-  off_t offset = apex.GetImageSize() + apex.GetImageOffset() - AVB_FOOTER_SIZE;
+  if (!apex.GetImageOffset() || !apex.GetImageSize()) {
+    return Error() << "Cannot check avb footer without image offset and size";
+  }
+  off_t offset = apex.GetImageSize().value() + apex.GetImageOffset().value() -
+                 AVB_FOOTER_SIZE;
   int ret = lseek(fd, offset, SEEK_SET);
   if (ret == -1) {
     return ErrnoError() << "Couldn't seek to AVB footer";
@@ -259,7 +264,11 @@ Result<std::unique_ptr<uint8_t[]>> VerifyVbMeta(const ApexFile& apex,
     return Errorf("VbMeta size in footer exceeds kVbMetaMaxSize.");
   }
 
-  off_t offset = apex.GetImageOffset() + footer.vbmeta_offset;
+  if (!apex.GetImageOffset()) {
+    return Error() << "Cannot check VbMeta size without image offset";
+  }
+
+  off_t offset = apex.GetImageOffset().value() + footer.vbmeta_offset;
   std::unique_ptr<uint8_t[]> vbmeta_buf(new uint8_t[footer.vbmeta_size]);
 
   if (!ReadFullyAtOffset(fd, vbmeta_buf.get(), footer.vbmeta_size, offset)) {
