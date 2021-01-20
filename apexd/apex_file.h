@@ -54,6 +54,7 @@ class ApexFile {
   android::base::Result<ApexVerityData> VerifyApexVerity(
       const std::string& public_key) const;
   bool IsCompressed() const { return is_compressed_; }
+  android::base::Result<void> Decompress(const std::string& output_path) const;
 
  private:
   ApexFile(const std::string& apex_path,
