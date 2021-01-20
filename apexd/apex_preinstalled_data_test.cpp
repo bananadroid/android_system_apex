@@ -100,7 +100,18 @@ TEST(ApexPreinstalledDataTest, InitializeFailureCorruptApex) {
   ASSERT_FALSE(IsOk(instance.Initialize({td.path})));
 }
 
-TEST(ApexPreinstalledData, InitializeSameNameDifferentPathAborts) {
+TEST(ApexPreinstalledDataTest, InitializeCompressedApexWithoutApex) {
+  // Prepare test data.
+  TemporaryDir td;
+  fs::copy(GetTestFile("com.android.apex.compressed.v1_without_apex.capex"),
+           td.path);
+
+  ApexPreinstalledData instance;
+  // Compressed APEX without APEX cannot be opened
+  ASSERT_FALSE(IsOk(instance.Initialize({td.path})));
+}
+
+TEST(ApexPreinstalledDataTest, InitializeSameNameDifferentPathAborts) {
   // Prepare test data.
   TemporaryDir td;
   fs::copy(GetTestFile("apex.apexd_test.apex"), td.path);
@@ -115,7 +126,23 @@ TEST(ApexPreinstalledData, InitializeSameNameDifferentPathAborts) {
       "");
 }
 
-TEST(ApexPreinstalledData, InitializePublicKeyUnexpectdlyChangedAborts) {
+TEST(ApexPreinstalledDataTest,
+     InitializeSameNameDifferentPathAbortsCompressedApex) {
+  // Prepare test data.
+  TemporaryDir td;
+  fs::copy(GetTestFile("com.android.apex.compressed.v1.capex"), td.path);
+  fs::copy(GetTestFile("com.android.apex.compressed.v1.capex"),
+           StringPrintf("%s/other.capex", td.path));
+
+  ASSERT_DEATH(
+      {
+        ApexPreinstalledData instance;
+        instance.Initialize({td.path});
+      },
+      "");
+}
+
+TEST(ApexPreinstalledDataTest, InitializePublicKeyUnexpectdlyChangedAborts) {
   // Prepare test data.
   TemporaryDir td;
   fs::copy(GetTestFile("apex.apexd_test.apex"), td.path);
@@ -148,7 +175,42 @@ TEST(ApexPreinstalledData, InitializePublicKeyUnexpectdlyChangedAborts) {
   ASSERT_DEATH({ instance.Initialize({td.path}); }, "");
 }
 
-TEST(ApexPreinstalledData, IsPreInstalledApex) {
+TEST(ApexPreinstalledDataTest,
+     InitializePublicKeyUnexpectdlyChangedAbortsCompressedApex) {
+  // Prepare test data.
+  TemporaryDir td;
+  fs::copy(GetTestFile("com.android.apex.compressed.v1.capex"), td.path);
+
+  ApexPreinstalledData instance;
+  ASSERT_TRUE(IsOk(instance.Initialize({td.path})));
+
+  // Check that apex was loaded.
+  auto path = instance.GetPreinstalledPath("com.android.apex.compressed");
+  ASSERT_TRUE(IsOk(path));
+  ASSERT_EQ(StringPrintf("%s/com.android.apex.compressed.v1.capex", td.path),
+            *path);
+
+  auto public_key = instance.GetPublicKey("com.android.apex.compressed");
+  ASSERT_TRUE(IsOk(public_key));
+
+  // Substitute it with another apex with the same name, but different public
+  // key.
+  fs::copy(GetTestFile("com.android.apex.compressed_different_key.capex"),
+           *path, fs::copy_options::overwrite_existing);
+
+  {
+    auto apex = ApexFile::Open(*path);
+    ASSERT_TRUE(IsOk(apex));
+    // Check module name hasn't changed.
+    ASSERT_EQ("com.android.apex.compressed", apex->GetManifest().name());
+    // Check public key has changed.
+    ASSERT_NE(*public_key, apex->GetBundledPublicKey());
+  }
+
+  ASSERT_DEATH({ instance.Initialize({td.path}); }, "");
+}
+
+TEST(ApexPreinstalledDataTest, IsPreInstalledApex) {
   // Prepare test data.
   TemporaryDir td;
   fs::copy(GetTestFile("apex.apexd_test.apex"), td.path);
