@@ -164,6 +164,51 @@ TEST(ApexFileTest, OpenInvalidFilesystem) {
               testing::HasSubstr("Failed to retrieve filesystem type"));
 }
 
+TEST(ApexFileTest, OpenCompressedApexFile) {
+  const std::string file_path =
+      kTestDataDir + "com.android.apex.compressed.v1.capex";
+  Result<ApexFile> apex_file = ApexFile::Open(file_path);
+  ASSERT_TRUE(apex_file.ok());
+
+  ZipArchiveHandle handle;
+  int32_t rc = OpenArchive(file_path.c_str(), &handle);
+  ASSERT_EQ(0, rc);
+  auto close_guard =
+      android::base::make_scope_guard([&handle]() { CloseArchive(handle); });
+
+  ZipEntry entry;
+  rc = FindEntry(handle, "original_apex", &entry);
+  ASSERT_EQ(0, rc);
+
+  ASSERT_EQ(0, apex_file->GetImageOffset());
+  ASSERT_EQ(0, apex_file->GetImageOffset());
+  ASSERT_EQ("", apex_file->GetFsType());
+}
+
+TEST(ApexFileTest, GetCompressedApexManifest) {
+  const std::string file_path =
+      kTestDataDir + "com.android.apex.compressed.v1.capex";
+  Result<ApexFile> apex_file = ApexFile::Open(file_path);
+  ASSERT_RESULT_OK(apex_file);
+  EXPECT_EQ("com.android.apex.compressed", apex_file->GetManifest().name());
+  EXPECT_EQ(1u, apex_file->GetManifest().version());
+}
+
+TEST(ApexFileTest, GetBundledPublicKeyOfCompressedApex) {
+  const std::string file_path =
+      kTestDataDir + "com.android.apex.compressed.v1.capex";
+  Result<ApexFile> apex_file = ApexFile::Open(file_path);
+  ASSERT_RESULT_OK(apex_file);
+
+  const std::string key_path =
+      kTestDataDir + "apexd_testdata/com.android.apex.compressed.avbpubkey";
+  std::string key_content;
+  ASSERT_TRUE(android::base::ReadFileToString(key_path, &key_content))
+      << "Failed to read " << key_path;
+
+  EXPECT_EQ(key_content, apex_file->GetBundledPublicKey());
+}
+
 }  // namespace
 }  // namespace apex
 }  // namespace android
