@@ -7,9 +7,6 @@
       "name": "apex_targetprep_tests"
     },
     {
-      "name": "sharedlibs_host_tests"
-    },
-    {
       "name": "sdkextensions_e2e_tests"
     },
     {
