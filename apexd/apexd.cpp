@@ -88,7 +88,6 @@ using android::base::Join;
 using android::base::ParseUint;
 using android::base::ReadFully;
 using android::base::Result;
-using android::base::StartsWith;
 using android::base::StringPrintf;
 using android::base::unique_fd;
 using android::dm::DeviceMapper;
@@ -1553,11 +1552,6 @@ Result<void> ActivateApexPackages(const std::vector<ApexFile>& apexes) {
   return {};
 }
 
-bool ShouldActivateApexOnData(const ApexFile& apex) {
-  return ApexPreinstalledData::GetInstance().HasPreInstalledVersion(
-      apex.GetManifest().name());
-}
-
 }  // namespace
 
 Result<void> ScanPackagesDirAndActivate(const char* apex_package_dir) {
@@ -2421,9 +2415,6 @@ void OnStart() {
   std::vector<ApexFile> activation_list =
       SelectApexForActivation(std::move(all_apex), instance);
 
-  // TODO(b/172911820): APEX on data that has not been selected for activation
-  //  needs to be cleaned up on boot complete
-
   int data_apex_cnt = std::count_if(
       activation_list.begin(), activation_list.end(), [](const ApexFile& a) {
         return !ApexPreinstalledData::GetInstance().IsPreInstalledApex(a);
@@ -2593,46 +2584,8 @@ Result<void> MarkStagedSessionSuccessful(const int session_id) {
 
 namespace {
 
-// Find dangling mounts and unmount them.
-// If one is on /data/apex/active, remove it.
-void UnmountDanglingMounts() {
-  std::multimap<std::string, MountedApexData> danglings;
-  gMountedApexes.ForallMountedApexes([&](const std::string& package,
-                                         const MountedApexData& data,
-                                         bool latest) {
-    Result<ApexFile> apex = ApexFile::Open(data.full_path);
-    if (!apex.ok()) {
-      return;
-    }
-    if (apex->GetManifest().providesharedapexlibs()) {
-      return;
-    }
-    if (!latest) {
-      danglings.insert({package, data});
-    }
-  });
-
-  for (const auto& [package, data] : danglings) {
-    const std::string& path = data.full_path;
-    LOG(VERBOSE) << "Unmounting " << data.mount_point;
-    gMountedApexes.RemoveMountedApex(package, path);
-    if (auto st = Unmount(data); !st.ok()) {
-      LOG(ERROR) << st.error();
-    }
-    if (StartsWith(path, kActiveApexPackagesDataDir)) {
-      LOG(VERBOSE) << "Deleting old APEX " << path;
-      if (unlink(path.c_str()) != 0) {
-        PLOG(ERROR) << "Failed to delete " << path;
-      }
-    }
-  }
-
-  RemoveObsoleteHashTrees();
-}
-
-// Removes APEXes on /data that don't have corresponding pre-installed version
-// or that are corrupt
-void RemoveOrphanedApexes() {
+// Removes APEXes on /data that have not been activated
+void RemoveInactiveDataApex() {
   auto data_apexes =
       FindFilesBySuffix(kActiveApexPackagesDataDir, {kApexPackageSuffix});
   if (!data_apexes.ok()) {
@@ -2641,23 +2594,10 @@ void RemoveOrphanedApexes() {
     return;
   }
   for (const auto& path : *data_apexes) {
-    auto apex = ApexFile::Open(path);
-    if (!apex.ok()) {
-      LOG(DEBUG) << "Failed to open APEX " << path << " : " << apex.error();
-      // before removing, double-check if the path is active or not
-      // just in case ApexFile::Open() fails with valid APEX
-      if (!apexd_private::IsMounted(path)) {
-        LOG(DEBUG) << "Removing corrupt APEX " << path;
-        if (unlink(path.c_str()) != 0) {
-          PLOG(ERROR) << "Failed to unlink " << path;
-        }
-      }
-      continue;
-    }
-    if (!ShouldActivateApexOnData(*apex)) {
-      LOG(DEBUG) << "Removing orphaned APEX " << path;
+    if (!apexd_private::IsMounted(path)) {
+      LOG(DEBUG) << "Removing inactive data APEX " << path;
       if (unlink(path.c_str()) != 0) {
-        PLOG(ERROR) << "Failed to unlink " << path;
+        PLOG(ERROR) << "Failed to unlink inactive data APEX " << path;
       }
     }
   }
@@ -2666,8 +2606,7 @@ void RemoveOrphanedApexes() {
 }  // namespace
 
 void BootCompletedCleanup() {
-  UnmountDanglingMounts();
-  RemoveOrphanedApexes();
+  RemoveInactiveDataApex();
   ApexSession::DeleteFinalizedSessions();
 }
 
