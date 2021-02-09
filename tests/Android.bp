@@ -215,4 +215,8 @@ android_test_helper_app {
     srcs: ["app/src/**/*.java"],
     static_libs: ["androidx.test.rules", "cts-install-lib", "testng"],
     test_suites: ["general-tests"],
+    java_resources: [
+        ":com.android.apex.compressed.v1_original",
+        ":com.android.apex.compressed.v2_original",
+    ]
 }
