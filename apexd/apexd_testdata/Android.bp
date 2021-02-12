@@ -15,6 +15,10 @@
 // These apex definitions will generate the prebuilt test data. The modules
 // are disabled so as not to pollute the build.
 
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
 apex_key {
     name: "com.android.apex.test_package.key",
     public_key: "com.android.apex.test_package.avbpubkey",
