@@ -113,6 +113,16 @@ apex {
 }
 
 apex {
+    name: "com.android.apex.compressed.v2_original",
+    manifest: "manifest_compressed_v2.json",
+    file_contexts: ":apex.test-file_contexts",
+    prebuilts: ["sample_prebuilt_file"],
+    key: "com.android.apex.compressed.key",
+    installable: false,
+    compressible: false,
+}
+
+apex {
     name: "apex.apexd_test_f2fs",
     manifest: "manifest.json",
     file_contexts: ":apex.test-file_contexts",
