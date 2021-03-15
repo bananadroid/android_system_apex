@@ -32,6 +32,7 @@
 
 #include <android-base/chrono_utils.h>
 #include <android-base/logging.h>
+#include <android-base/properties.h>
 #include <android-base/result.h>
 #include <android-base/scopeguard.h>
 #include <android-base/strings.h>
@@ -43,6 +44,7 @@
 using android::base::EndsWith;
 using android::base::ErrnoError;
 using android::base::Error;
+using android::base::GetUintProperty;
 using android::base::Result;
 
 namespace android {
