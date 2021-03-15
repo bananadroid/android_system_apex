@@ -95,6 +95,7 @@ using android::dm::DeviceMapper;
 using android::dm::DmDeviceState;
 using android::dm::DmTable;
 using android::dm::DmTargetVerity;
+using ::apex::proto::ApexManifest;
 using apex::proto::SessionState;
 using google::protobuf::util::MessageDifferencer;
 
