@@ -527,5 +527,32 @@ TEST(ApexdUnitTest, ReserveSpaceForCompressedApexErrorForNegativeValue) {
   ASSERT_FALSE(IsOk(ReserveSpaceForCompressedApex(-1, dest_dir.path)));
 }
 
+TEST(ApexdUnitTest, ActivatePackage) {
+  MountNamespaceRestorer restorer;
+  ASSERT_TRUE(IsOk(SetUpApexTestEnvironment()));
+
+  TemporaryDir td;
+  fs::copy(GetTestFile("apex.apexd_test.apex"), td.path);
+  ApexFileRepository::GetInstance().AddPreInstalledApex({td.path});
+
+  std::string file_path = StringPrintf("%s/apex.apexd_test.apex", td.path);
+  ASSERT_TRUE(IsOk(ActivatePackage(file_path)));
+
+  auto active_apex = GetActivePackage("com.android.apex.test_package");
+  ASSERT_TRUE(IsOk(active_apex));
+  ASSERT_EQ(active_apex->GetPath(), file_path);
+
+  auto apex_mounts = GetApexMounts();
+  ASSERT_THAT(apex_mounts,
+              UnorderedElementsAre("/apex/com.android.apex.test_package",
+                                   "/apex/com.android.apex.test_package@1"));
+
+  ASSERT_TRUE(IsOk(DeactivatePackage(file_path)));
+  ASSERT_FALSE(IsOk(GetActivePackage("com.android.apex.test_package")));
+
+  auto new_apex_mounts = GetApexMounts();
+  ASSERT_EQ(new_apex_mounts.size(), 0u);
+}
+
 }  // namespace apex
 }  // namespace android
