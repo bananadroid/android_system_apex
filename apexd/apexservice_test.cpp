@@ -2855,8 +2855,10 @@ TEST_F(ApexServiceTest, RemountPackagesPackageOnSystemChanged) {
   auto active_apex = GetActivePackage("com.android.apex.test_package");
   ASSERT_RESULT_OK(active_apex);
   ASSERT_EQ(2u, active_apex->versionCode);
-  // Sanity check that module path didn't change.
-  ASSERT_EQ(kSystemPath, active_apex->modulePath);
+  // Check that module path didn't change, modulo symlink.
+  std::string realSystemPath;
+  ASSERT_TRUE(android::base::Realpath(kSystemPath, &realSystemPath));
+  ASSERT_EQ(realSystemPath, active_apex->modulePath);
 }
 
 TEST_F(ApexServiceActivationSuccessTest, RemountPackagesPackageOnDataChanged) {
