@@ -573,7 +573,8 @@ TEST(ApexdUnitTest, OnOtaChrootBootstrapOnlyPreInstalledApexes) {
   std::string apex_path_2 =
       StringPrintf("%s/apex.apexd_test_different_app.apex", td.path);
 
-  ASSERT_EQ(OnOtaChrootBootstrap({td.path}), 0);
+  ASSERT_EQ(OnOtaChrootBootstrap({td.path}, "/data/local/tmp/does-not-exist"),
+            0);
 
   auto deleter = make_scope_guard([&]() {
     if (auto st = DeactivatePackage(apex_path_1); !st.ok()) {
@@ -595,12 +596,223 @@ TEST(ApexdUnitTest, OnOtaChrootBootstrapOnlyPreInstalledApexes) {
   auto info_list =
       com::android::apex::readApexInfoList("/apex/apex-info-list.xml");
   ASSERT_TRUE(info_list.has_value());
-  auto apex_info_xml_1 =
-      com::android::apex::ApexInfo("com.android.apex.test_package", apex_path_1,
-                                   apex_path_1, 1, "1", true, true);
+  auto apex_info_xml_1 = com::android::apex::ApexInfo(
+      /* moduleName= */ "com.android.apex.test_package",
+      /* modulePath= */ apex_path_1,
+      /* preinstalledModulePath= */ apex_path_1,
+      /* versionCode= */ 1, /* versionName= */ "1",
+      /* isFactory= */ true, /* isActive= */ true);
   auto apex_info_xml_2 = com::android::apex::ApexInfo(
-      "com.android.apex.test_package_2", apex_path_2, apex_path_2, 1, "1", true,
-      true);
+      /* moduleName= */ "com.android.apex.test_package_2",
+      /* modulePath= */ apex_path_2, /* preinstalledModulePath= */ apex_path_2,
+      /* versionCode= */ 1, /* versionName= */ "1", /* isFactory= */ true,
+      /* isActive= */ true);
+  ASSERT_THAT(info_list->getApexInfo(),
+              UnorderedElementsAre(ApexInfoXmlEq(apex_info_xml_1),
+                                   ApexInfoXmlEq(apex_info_xml_2)));
+}
+
+TEST(ApexdUnitTest, OnOtaChrootBootstrapFailsToScanPreInstalledApexes) {
+  ApexFileRepository::GetInstance().Reset();
+  MountNamespaceRestorer restorer;
+  ASSERT_TRUE(IsOk(SetUpApexTestEnvironment()));
+
+  TemporaryDir td;
+  fs::copy(GetTestFile("apex.apexd_test.apex"), td.path);
+  fs::copy(GetTestFile("apex.apexd_test_corrupt_superblock_apex.apex"),
+           td.path);
+
+  ASSERT_EQ(OnOtaChrootBootstrap({td.path}, "/data/local/whatevs"), 1);
+}
+
+TEST(ApexdUnitTest, OnOtaChrootBootstrapDataHasHigherVersion) {
+  ApexFileRepository::GetInstance().Reset();
+  MountNamespaceRestorer restorer;
+  ASSERT_TRUE(IsOk(SetUpApexTestEnvironment()));
+
+  TemporaryDir td;
+  std::string built_in_dir = StringPrintf("%s/pre-installed-apex", td.path);
+  std::string data_dir = StringPrintf("%s/data-apex", td.path);
+  ASSERT_EQ(mkdir(built_in_dir.c_str(), 0755), 0);
+  ASSERT_EQ(mkdir(data_dir.c_str(), 0755), 0);
+
+  fs::copy(GetTestFile("apex.apexd_test.apex"), built_in_dir);
+  fs::copy(GetTestFile("apex.apexd_test_different_app.apex"), built_in_dir);
+  fs::copy(GetTestFile("apex.apexd_test_v2.apex"), data_dir);
+
+  std::string apex_path_1 =
+      StringPrintf("%s/apex.apexd_test.apex", built_in_dir.c_str());
+  std::string apex_path_2 = StringPrintf(
+      "%s/apex.apexd_test_different_app.apex", built_in_dir.c_str());
+  std::string apex_path_3 =
+      StringPrintf("%s/apex.apexd_test_v2.apex", data_dir.c_str());
+
+  ASSERT_EQ(OnOtaChrootBootstrap({built_in_dir}, data_dir), 0);
+
+  auto deleter = make_scope_guard([&]() {
+    if (auto st = DeactivatePackage(apex_path_2); !st.ok()) {
+      LOG(ERROR) << st.error();
+    };
+    if (auto st = DeactivatePackage(apex_path_3); !st.ok()) {
+      LOG(ERROR) << st.error();
+    };
+  });
+
+  auto apex_mounts = GetApexMounts();
+  ASSERT_THAT(apex_mounts,
+              UnorderedElementsAre("/apex/com.android.apex.test_package",
+                                   "/apex/com.android.apex.test_package@2",
+                                   "/apex/com.android.apex.test_package_2",
+                                   "/apex/com.android.apex.test_package_2@1"));
+
+  ASSERT_EQ(access("/apex/apex-info-list.xml", F_OK), 0);
+  auto info_list =
+      com::android::apex::readApexInfoList("/apex/apex-info-list.xml");
+  ASSERT_TRUE(info_list.has_value());
+  auto apex_info_xml_1 = com::android::apex::ApexInfo(
+      /* moduleName= */ "com.android.apex.test_package",
+      /* modulePath= */ apex_path_1,
+      /* preinstalledModulePath= */ apex_path_1,
+      /* versionCode= */ 1, /* versionName= */ "1",
+      /* isFactory= */ true, /* isActive= */ false);
+  auto apex_info_xml_2 = com::android::apex::ApexInfo(
+      /* moduleName= */ "com.android.apex.test_package_2",
+      /* modulePath= */ apex_path_2, /* preinstalledModulePath= */ apex_path_2,
+      /* versionCode= */ 1, /* versionName= */ "1", /* isFactory= */ true,
+      /* isActive= */ true);
+  auto apex_info_xml_3 = com::android::apex::ApexInfo(
+      /* moduleName= */ "com.android.apex.test_package",
+      /* modulePath= */ apex_path_3,
+      /* preinstalledModulePath= */ apex_path_1,
+      /* versionCode= */ 2, /* versionName= */ "2",
+      /* isFactory= */ false, /* isActive= */ true);
+  ASSERT_THAT(info_list->getApexInfo(),
+              UnorderedElementsAre(ApexInfoXmlEq(apex_info_xml_1),
+                                   ApexInfoXmlEq(apex_info_xml_2),
+                                   ApexInfoXmlEq(apex_info_xml_3)));
+}
+
+TEST(ApexdUnitTest, OnOtaChrootBootstrapDataHasSameVersion) {
+  ApexFileRepository::GetInstance().Reset();
+  MountNamespaceRestorer restorer;
+  ASSERT_TRUE(IsOk(SetUpApexTestEnvironment()));
+
+  TemporaryDir td;
+  std::string built_in_dir = StringPrintf("%s/pre-installed-apex", td.path);
+  std::string data_dir = StringPrintf("%s/data-apex", td.path);
+  ASSERT_EQ(mkdir(built_in_dir.c_str(), 0755), 0);
+  ASSERT_EQ(mkdir(data_dir.c_str(), 0755), 0);
+
+  fs::copy(GetTestFile("apex.apexd_test.apex"), built_in_dir);
+  fs::copy(GetTestFile("apex.apexd_test_different_app.apex"), built_in_dir);
+  fs::copy(GetTestFile("apex.apexd_test.apex"), data_dir);
+
+  std::string apex_path_1 =
+      StringPrintf("%s/apex.apexd_test.apex", built_in_dir.c_str());
+  std::string apex_path_2 = StringPrintf(
+      "%s/apex.apexd_test_different_app.apex", built_in_dir.c_str());
+  std::string apex_path_3 =
+      StringPrintf("%s/apex.apexd_test.apex", data_dir.c_str());
+
+  ASSERT_EQ(OnOtaChrootBootstrap({built_in_dir}, data_dir), 0);
+
+  auto deleter = make_scope_guard([&]() {
+    if (auto st = DeactivatePackage(apex_path_2); !st.ok()) {
+      LOG(ERROR) << st.error();
+    };
+    if (auto st = DeactivatePackage(apex_path_3); !st.ok()) {
+      LOG(ERROR) << st.error();
+    };
+  });
+
+  auto apex_mounts = GetApexMounts();
+  ASSERT_THAT(apex_mounts,
+              UnorderedElementsAre("/apex/com.android.apex.test_package",
+                                   "/apex/com.android.apex.test_package@1",
+                                   "/apex/com.android.apex.test_package_2",
+                                   "/apex/com.android.apex.test_package_2@1"));
+
+  ASSERT_EQ(access("/apex/apex-info-list.xml", F_OK), 0);
+  auto info_list =
+      com::android::apex::readApexInfoList("/apex/apex-info-list.xml");
+  ASSERT_TRUE(info_list.has_value());
+  auto apex_info_xml_1 = com::android::apex::ApexInfo(
+      /* moduleName= */ "com.android.apex.test_package",
+      /* modulePath= */ apex_path_1,
+      /* preinstalledModulePath= */ apex_path_1,
+      /* versionCode= */ 1, /* versionName= */ "1",
+      /* isFactory= */ true, /* isActive= */ false);
+  auto apex_info_xml_2 = com::android::apex::ApexInfo(
+      /* moduleName= */ "com.android.apex.test_package_2",
+      /* modulePath= */ apex_path_2, /* preinstalledModulePath= */ apex_path_2,
+      /* versionCode= */ 1, /* versionName= */ "1", /* isFactory= */ true,
+      /* isActive= */ true);
+  auto apex_info_xml_3 = com::android::apex::ApexInfo(
+      /* moduleName= */ "com.android.apex.test_package",
+      /* modulePath= */ apex_path_3,
+      /* preinstalledModulePath= */ apex_path_1,
+      /* versionCode= */ 1, /* versionName= */ "1",
+      /* isFactory= */ false, /* isActive= */ true);
+  ASSERT_THAT(info_list->getApexInfo(),
+              UnorderedElementsAre(ApexInfoXmlEq(apex_info_xml_1),
+                                   ApexInfoXmlEq(apex_info_xml_2),
+                                   ApexInfoXmlEq(apex_info_xml_3)));
+}
+
+TEST(ApexdUnitTest, OnOtaChrootBootstrapSystemHasHigherVersion) {
+  ApexFileRepository::GetInstance().Reset();
+  MountNamespaceRestorer restorer;
+  ASSERT_TRUE(IsOk(SetUpApexTestEnvironment()));
+
+  TemporaryDir td;
+  std::string built_in_dir = StringPrintf("%s/pre-installed-apex", td.path);
+  std::string data_dir = StringPrintf("%s/data-apex", td.path);
+  ASSERT_EQ(mkdir(built_in_dir.c_str(), 0755), 0);
+  ASSERT_EQ(mkdir(data_dir.c_str(), 0755), 0);
+
+  fs::copy(GetTestFile("apex.apexd_test_v2.apex"), built_in_dir);
+  fs::copy(GetTestFile("apex.apexd_test_different_app.apex"), built_in_dir);
+  fs::copy(GetTestFile("apex.apexd_test.apex"), data_dir);
+
+  std::string apex_path_1 =
+      StringPrintf("%s/apex.apexd_test_v2.apex", built_in_dir.c_str());
+  std::string apex_path_2 = StringPrintf(
+      "%s/apex.apexd_test_different_app.apex", built_in_dir.c_str());
+
+  ASSERT_EQ(OnOtaChrootBootstrap({built_in_dir}, data_dir), 0);
+
+  auto deleter = make_scope_guard([&]() {
+    if (auto st = DeactivatePackage(apex_path_1); !st.ok()) {
+      LOG(ERROR) << st.error();
+    };
+    if (auto st = DeactivatePackage(apex_path_2); !st.ok()) {
+      LOG(ERROR) << st.error();
+    };
+  });
+
+  auto apex_mounts = GetApexMounts();
+  ASSERT_THAT(apex_mounts,
+              UnorderedElementsAre("/apex/com.android.apex.test_package",
+                                   "/apex/com.android.apex.test_package@2",
+                                   "/apex/com.android.apex.test_package_2",
+                                   "/apex/com.android.apex.test_package_2@1"));
+
+  ASSERT_EQ(access("/apex/apex-info-list.xml", F_OK), 0);
+  auto info_list =
+      com::android::apex::readApexInfoList("/apex/apex-info-list.xml");
+  ASSERT_TRUE(info_list.has_value());
+  auto apex_info_xml_1 = com::android::apex::ApexInfo(
+      /* moduleName= */ "com.android.apex.test_package",
+      /* modulePath= */ apex_path_1,
+      /* preinstalledModulePath= */ apex_path_1,
+      /* versionCode= */ 2, /* versionName= */ "2",
+      /* isFactory= */ true, /* isActive= */ true);
+  auto apex_info_xml_2 = com::android::apex::ApexInfo(
+      /* moduleName= */ "com.android.apex.test_package_2",
+      /* modulePath= */ apex_path_2, /* preinstalledModulePath= */ apex_path_2,
+      /* versionCode= */ 1, /* versionName= */ "1", /* isFactory= */ true,
+      /* isActive= */ true);
+
   ASSERT_THAT(info_list->getApexInfo(),
               UnorderedElementsAre(ApexInfoXmlEq(apex_info_xml_1),
                                    ApexInfoXmlEq(apex_info_xml_2)));
