@@ -1066,5 +1066,36 @@ TEST_F(ApexdMountTest, OnOtaChrootBootstrapSharedLibsApexBothVersions) {
   ASSERT_THAT(sharedlibs, UnorderedElementsAreArray(expected));
 }
 
+static std::string GetSelinuxContext(const std::string& file) {
+  char* ctx;
+  if (getfilecon(file.c_str(), &ctx) < 0) {
+    PLOG(ERROR) << "Failed to getfilecon " << file;
+    return "";
+  }
+  std::string result(ctx);
+  freecon(ctx);
+  return result;
+}
+
+TEST_F(ApexdMountTest, OnOtaChrootBootstrapSelinuxLabelsAreCorrect) {
+  std::string apex_path_1 = AddPreInstalledApex("apex.apexd_test.apex");
+  std::string apex_path_2 = AddPreInstalledApex(
+      "com.android.apex.test.sharedlibs_generated.v1.libvX.apex");
+  std::string apex_path_3 = AddDataApex("apex.apexd_test_v2.apex");
+
+  ASSERT_EQ(OnOtaChrootBootstrap({GetBuiltInDir()}, GetDataDir()), 0);
+
+  EXPECT_EQ(GetSelinuxContext("/apex/apex-info-list.xml"),
+            "u:object_r:apex_info_file:s0");
+
+  EXPECT_EQ(GetSelinuxContext("/apex/sharedlibs"),
+            "u:object_r:apex_mnt_dir:s0");
+
+  EXPECT_EQ(GetSelinuxContext("/apex/com.android.apex.test_package"),
+            "u:object_r:system_file:s0");
+  EXPECT_EQ(GetSelinuxContext("/apex/com.android.apex.test_package@2"),
+            "u:object_r:system_file:s0");
+}
+
 }  // namespace apex
 }  // namespace android

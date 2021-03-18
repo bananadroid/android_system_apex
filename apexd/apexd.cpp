@@ -2995,6 +2995,14 @@ int OnOtaChrootBootstrap(const std::vector<std::string>& built_in_dirs,
     return 1;
   }
 
+  fd.reset();
+
+  if (auto status = RestoreconPath(file_name); !status.ok()) {
+    LOG(ERROR) << "Failed to restorecon " << file_name << " : "
+               << status.error();
+    return 1;
+  }
+
   return 0;
 }
 
