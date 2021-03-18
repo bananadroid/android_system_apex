@@ -2943,6 +2943,12 @@ int OnOtaChrootBootstrap(const std::vector<std::string>& built_in_dirs,
     // re-optimized on next boot.
   }
 
+  // Create directories for APEX shared libraries.
+  if (auto status = CreateSharedLibsApexDir(); !status.ok()) {
+    LOG(ERROR) << "Failed to create /apex/sharedlibs : " << status.ok();
+    return 1;
+  }
+
   auto activation_list =
       SelectApexForActivation(instance.AllApexFilesByName(), instance);
   if (auto status = ActivateApexPackages(activation_list); !status.ok()) {

@@ -18,6 +18,7 @@
 #include <vector>
 
 #include <android-base/file.h>
+#include <android-base/properties.h>
 #include <android-base/stringprintf.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -37,10 +38,12 @@ namespace fs = std::filesystem;
 using android::apex::testing::ApexFileEq;
 using android::apex::testing::IsOk;
 using android::base::GetExecutableDirectory;
+using android::base::GetProperty;
 using android::base::StringPrintf;
 using com::android::apex::testing::ApexInfoXmlEq;
 using ::testing::ByRef;
 using ::testing::UnorderedElementsAre;
+using ::testing::UnorderedElementsAreArray;
 
 static std::string GetTestDataDir() { return GetExecutableDirectory(); }
 static std::string GetTestFile(const std::string& name) {
@@ -888,6 +891,179 @@ TEST_F(ApexdMountTest, OnOtaChrootBootstrapDataApexWithoutPreInstalledApex) {
 
   ASSERT_THAT(info_list->getApexInfo(),
               UnorderedElementsAre(ApexInfoXmlEq(apex_info_xml_1)));
+}
+
+TEST_F(ApexdMountTest, OnOtaChrootBootstrapPreInstalledSharedLibsApex) {
+  std::string apex_path_1 = AddPreInstalledApex("apex.apexd_test.apex");
+  std::string apex_path_2 = AddPreInstalledApex(
+      "com.android.apex.test.sharedlibs_generated.v1.libvX.apex");
+  std::string apex_path_3 = AddDataApex("apex.apexd_test_v2.apex");
+
+  ASSERT_EQ(OnOtaChrootBootstrap({GetBuiltInDir()}, GetDataDir()), 0);
+
+  UnmountOnTearDown(apex_path_2);
+  UnmountOnTearDown(apex_path_3);
+
+  auto apex_mounts = GetApexMounts();
+  ASSERT_THAT(apex_mounts,
+              UnorderedElementsAre("/apex/com.android.apex.test_package",
+                                   "/apex/com.android.apex.test_package@2",
+                                   "/apex/com.android.apex.test.sharedlibs@1"));
+
+  ASSERT_EQ(access("/apex/apex-info-list.xml", F_OK), 0);
+  auto info_list =
+      com::android::apex::readApexInfoList("/apex/apex-info-list.xml");
+  ASSERT_TRUE(info_list.has_value());
+  auto apex_info_xml_1 = com::android::apex::ApexInfo(
+      /* moduleName= */ "com.android.apex.test_package",
+      /* modulePath= */ apex_path_1,
+      /* preinstalledModulePath= */ apex_path_1,
+      /* versionCode= */ 1, /* versionName= */ "1",
+      /* isFactory= */ true, /* isActive= */ false);
+  auto apex_info_xml_2 = com::android::apex::ApexInfo(
+      /* moduleName= */ "com.android.apex.test.sharedlibs",
+      /* modulePath= */ apex_path_2,
+      /* preinstalledModulePath= */ apex_path_2,
+      /* versionCode= */ 1, /* versionName= */ "1",
+      /* isFactory= */ true, /* isActive= */ true);
+  auto apex_info_xml_3 = com::android::apex::ApexInfo(
+      /* moduleName= */ "com.android.apex.test_package",
+      /* modulePath= */ apex_path_3,
+      /* preinstalledModulePath= */ apex_path_1,
+      /* versionCode= */ 2, /* versionName= */ "2",
+      /* isFactory= */ false, /* isActive= */ true);
+
+  ASSERT_THAT(info_list->getApexInfo(),
+              UnorderedElementsAre(ApexInfoXmlEq(apex_info_xml_1),
+                                   ApexInfoXmlEq(apex_info_xml_2),
+                                   ApexInfoXmlEq(apex_info_xml_3)));
+
+  ASSERT_EQ(access("/apex/sharedlibs", F_OK), 0);
+
+  // Check /apex/sharedlibs is populated properly.
+  std::vector<std::string> sharedlibs;
+  for (const auto& p : fs::recursive_directory_iterator("/apex/sharedlibs")) {
+    if (fs::is_symlink(p)) {
+      auto src = fs::read_symlink(p.path());
+      ASSERT_EQ(p.path().filename(), src.filename());
+      sharedlibs.push_back(p.path().parent_path().string() + "->" +
+                           src.parent_path().string());
+    }
+  }
+
+  std::vector<std::string> expected = {
+      "/apex/sharedlibs/lib/libsharedlibtest.so->"
+      "/apex/com.android.apex.test.sharedlibs@1/lib/libsharedlibtest.so",
+      "/apex/sharedlibs/lib/libc++.so->"
+      "/apex/com.android.apex.test.sharedlibs@1/lib/libc++.so",
+  };
+
+  // On 64bit devices we also have lib64.
+  if (!GetProperty("ro.product.cpu.abilist64", "").empty()) {
+    expected.push_back(
+        "/apex/sharedlibs/lib64/libsharedlibtest.so->"
+        "/apex/com.android.apex.test.sharedlibs@1/lib64/libsharedlibtest.so");
+    expected.push_back(
+        "/apex/sharedlibs/lib64/libc++.so->"
+        "/apex/com.android.apex.test.sharedlibs@1/lib64/libc++.so");
+  }
+  ASSERT_THAT(sharedlibs, UnorderedElementsAreArray(expected));
+}
+
+TEST_F(ApexdMountTest, OnOtaChrootBootstrapSharedLibsApexBothVersions) {
+  std::string apex_path_1 = AddPreInstalledApex("apex.apexd_test.apex");
+  std::string apex_path_2 = AddPreInstalledApex(
+      "com.android.apex.test.sharedlibs_generated.v1.libvX.apex");
+  std::string apex_path_3 = AddDataApex("apex.apexd_test_v2.apex");
+  std::string apex_path_4 =
+      AddDataApex("com.android.apex.test.sharedlibs_generated.v2.libvY.apex");
+
+  ASSERT_EQ(OnOtaChrootBootstrap({GetBuiltInDir()}, GetDataDir()), 0);
+
+  UnmountOnTearDown(apex_path_2);
+  UnmountOnTearDown(apex_path_3);
+  UnmountOnTearDown(apex_path_4);
+
+  auto apex_mounts = GetApexMounts();
+  ASSERT_THAT(apex_mounts,
+              UnorderedElementsAre("/apex/com.android.apex.test_package",
+                                   "/apex/com.android.apex.test_package@2",
+                                   "/apex/com.android.apex.test.sharedlibs@1",
+                                   "/apex/com.android.apex.test.sharedlibs@2"));
+
+  ASSERT_EQ(access("/apex/apex-info-list.xml", F_OK), 0);
+  auto info_list =
+      com::android::apex::readApexInfoList("/apex/apex-info-list.xml");
+  ASSERT_TRUE(info_list.has_value());
+  auto apex_info_xml_1 = com::android::apex::ApexInfo(
+      /* moduleName= */ "com.android.apex.test_package",
+      /* modulePath= */ apex_path_1,
+      /* preinstalledModulePath= */ apex_path_1,
+      /* versionCode= */ 1, /* versionName= */ "1",
+      /* isFactory= */ true, /* isActive= */ false);
+  auto apex_info_xml_2 = com::android::apex::ApexInfo(
+      /* moduleName= */ "com.android.apex.test.sharedlibs",
+      /* modulePath= */ apex_path_2,
+      /* preinstalledModulePath= */ apex_path_2,
+      /* versionCode= */ 1, /* versionName= */ "1",
+      /* isFactory= */ true, /* isActive= */ false);
+  auto apex_info_xml_3 = com::android::apex::ApexInfo(
+      /* moduleName= */ "com.android.apex.test_package",
+      /* modulePath= */ apex_path_3,
+      /* preinstalledModulePath= */ apex_path_1,
+      /* versionCode= */ 2, /* versionName= */ "2",
+      /* isFactory= */ false, /* isActive= */ true);
+  auto apex_info_xml_4 = com::android::apex::ApexInfo(
+      /* moduleName= */ "com.android.apex.test.sharedlibs",
+      /* modulePath= */ apex_path_4,
+      /* preinstalledModulePath= */ apex_path_2,
+      /* versionCode= */ 2, /* versionName= */ "2",
+      /* isFactory= */ false, /* isActive= */ true);
+
+  ASSERT_THAT(info_list->getApexInfo(),
+              UnorderedElementsAre(ApexInfoXmlEq(apex_info_xml_1),
+                                   ApexInfoXmlEq(apex_info_xml_2),
+                                   ApexInfoXmlEq(apex_info_xml_3),
+                                   ApexInfoXmlEq(apex_info_xml_4)));
+
+  ASSERT_EQ(access("/apex/sharedlibs", F_OK), 0);
+
+  // Check /apex/sharedlibs is populated properly.
+  // Because we don't want to hardcode full paths (they are pretty long and have
+  // a hash in them which might change if new prebuilts are dropped in), the
+  // assertion logic is a little bit clunky.
+  std::vector<std::string> sharedlibs;
+  for (const auto& p : fs::recursive_directory_iterator("/apex/sharedlibs")) {
+    if (fs::is_symlink(p)) {
+      auto src = fs::read_symlink(p.path());
+      ASSERT_EQ(p.path().filename(), src.filename());
+      sharedlibs.push_back(p.path().parent_path().string() + "->" +
+                           src.parent_path().string());
+    }
+  }
+
+  std::vector<std::string> expected = {
+      "/apex/sharedlibs/lib/libsharedlibtest.so->"
+      "/apex/com.android.apex.test.sharedlibs@2/lib/libsharedlibtest.so",
+      "/apex/sharedlibs/lib/libsharedlibtest.so->"
+      "/apex/com.android.apex.test.sharedlibs@1/lib/libsharedlibtest.so",
+      "/apex/sharedlibs/lib/libc++.so->"
+      "/apex/com.android.apex.test.sharedlibs@1/lib/libc++.so",
+  };
+  // On 64bit devices we also have lib64.
+  if (!GetProperty("ro.product.cpu.abilist64", "").empty()) {
+    expected.push_back(
+        "/apex/sharedlibs/lib64/libsharedlibtest.so->"
+        "/apex/com.android.apex.test.sharedlibs@2/lib64/libsharedlibtest.so");
+    expected.push_back(
+        "/apex/sharedlibs/lib64/libsharedlibtest.so->"
+        "/apex/com.android.apex.test.sharedlibs@1/lib64/libsharedlibtest.so");
+    expected.push_back(
+        "/apex/sharedlibs/lib64/libc++.so->"
+        "/apex/com.android.apex.test.sharedlibs@1/lib64/libc++.so");
+  }
+
+  ASSERT_THAT(sharedlibs, UnorderedElementsAreArray(expected));
 }
 
 }  // namespace apex
