@@ -948,7 +948,9 @@ Result<void> UnmountPackage(const ApexFile& apex, bool allow_latest) {
     return Error() << "Did not find " << apex.GetPath();
   }
 
-  if (latest) {
+  // Concept of latest sharedlibs apex is somewhat blurred. Since this is only
+  // used in testing, it is ok to always allow unmounting sharedlibs apex.
+  if (latest && !manifest.providesharedapexlibs()) {
     if (!allow_latest) {
       return Error() << "Package " << apex.GetPath() << " is active";
     }
