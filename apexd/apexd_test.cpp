@@ -19,6 +19,7 @@
 
 #include <android-base/file.h>
 #include <android-base/properties.h>
+#include <android-base/scopeguard.h>
 #include <android-base/stringprintf.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -39,6 +40,7 @@ using android::apex::testing::ApexFileEq;
 using android::apex::testing::IsOk;
 using android::base::GetExecutableDirectory;
 using android::base::GetProperty;
+using android::base::make_scope_guard;
 using android::base::StringPrintf;
 using com::android::apex::testing::ApexInfoXmlEq;
 using ::testing::ByRef;
@@ -600,6 +602,39 @@ TEST_F(ApexdMountTest, ActivatePackage) {
 
   ASSERT_TRUE(IsOk(DeactivatePackage(file_path)));
   ASSERT_FALSE(IsOk(GetActivePackage("com.android.apex.test_package")));
+
+  auto new_apex_mounts = GetApexMounts();
+  ASSERT_EQ(new_apex_mounts.size(), 0u);
+}
+
+TEST_F(ApexdMountTest, ActivateDeactivateSharedLibsApex) {
+  ASSERT_EQ(mkdir("/apex/sharedlibs", 0755), 0);
+  ASSERT_EQ(mkdir("/apex/sharedlibs/lib", 0755), 0);
+  ASSERT_EQ(mkdir("/apex/sharedlibs/lib64", 0755), 0);
+  auto deleter = make_scope_guard([]() {
+    std::error_code ec;
+    fs::remove_all("/apex/sharedlibs", ec);
+    if (ec) {
+      LOG(ERROR) << "Failed to delete /apex/sharedlibs : " << ec;
+    }
+  });
+
+  std::string file_path = AddPreInstalledApex(
+      "com.android.apex.test.sharedlibs_generated.v1.libvX.apex");
+  ApexFileRepository::GetInstance().AddPreInstalledApex({GetBuiltInDir()});
+
+  ASSERT_TRUE(IsOk(ActivatePackage(file_path)));
+
+  auto active_apex = GetActivePackage("com.android.apex.test.sharedlibs");
+  ASSERT_TRUE(IsOk(active_apex));
+  ASSERT_EQ(active_apex->GetPath(), file_path);
+
+  auto apex_mounts = GetApexMounts();
+  ASSERT_THAT(apex_mounts,
+              UnorderedElementsAre("/apex/com.android.apex.test.sharedlibs@1"));
+
+  ASSERT_TRUE(IsOk(DeactivatePackage(file_path)));
+  ASSERT_FALSE(IsOk(GetActivePackage("com.android.apex.test.sharedlibs")));
 
   auto new_apex_mounts = GetApexMounts();
   ASSERT_EQ(new_apex_mounts.size(), 0u);
