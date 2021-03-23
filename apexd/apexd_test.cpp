@@ -24,6 +24,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include "apex_database.h"
 #include "apex_file_repository.h"
 #include "apexd.h"
 #include "apexd_test_utils.h"
@@ -36,6 +37,7 @@ namespace apex {
 
 namespace fs = std::filesystem;
 
+using MountedApexData = MountedApexDatabase::MountedApexData;
 using android::apex::testing::ApexFileEq;
 using android::apex::testing::IsOk;
 using android::base::GetExecutableDirectory;
@@ -44,6 +46,8 @@ using android::base::make_scope_guard;
 using android::base::StringPrintf;
 using com::android::apex::testing::ApexInfoXmlEq;
 using ::testing::ByRef;
+using ::testing::IsEmpty;
+using ::testing::StartsWith;
 using ::testing::UnorderedElementsAre;
 using ::testing::UnorderedElementsAreArray;
 
@@ -563,6 +567,7 @@ class ApexdMountTest : public ::testing::Test {
  protected:
   void SetUp() final {
     ApexFileRepository::GetInstance().Reset();
+    GetApexDatabaseForTesting().Reset();
     ASSERT_TRUE(IsOk(SetUpApexTestEnvironment()));
     ASSERT_EQ(mkdir(built_in_dir_.c_str(), 0755), 0);
     ASSERT_EQ(mkdir(data_dir_.c_str(), 0755), 0);
@@ -1130,6 +1135,35 @@ TEST_F(ApexdMountTest, OnOtaChrootBootstrapSelinuxLabelsAreCorrect) {
             "u:object_r:system_file:s0");
   EXPECT_EQ(GetSelinuxContext("/apex/com.android.apex.test_package@2"),
             "u:object_r:system_file:s0");
+}
+
+TEST_F(ApexdMountTest, OnOtaChrootBootstrapDmDevicesHaveCorrectName) {
+  std::string apex_path_1 = AddPreInstalledApex("apex.apexd_test.apex");
+  std::string apex_path_2 =
+      AddPreInstalledApex("apex.apexd_test_different_app.apex");
+  std::string apex_path_3 = AddDataApex("apex.apexd_test_v2.apex");
+
+  ASSERT_EQ(OnOtaChrootBootstrap({GetBuiltInDir()}, GetDataDir()), 0);
+  UnmountOnTearDown(apex_path_2);
+  UnmountOnTearDown(apex_path_3);
+
+  MountedApexDatabase& db = GetApexDatabaseForTesting();
+  // com.android.apex.test_package_2 should be mounted directly on top of loop
+  // device.
+  db.ForallMountedApexes("com.android.apex.test_package_2",
+                         [&](const MountedApexData& data, bool latest) {
+                           ASSERT_TRUE(latest);
+                           ASSERT_THAT(data.device_name, IsEmpty());
+                           ASSERT_THAT(data.loop_name, StartsWith("/dev"));
+                         });
+  // com.android.apex.test_package should be mounted on top of dm-verity device.
+  db.ForallMountedApexes("com.android.apex.test_package",
+                         [&](const MountedApexData& data, bool latest) {
+                           ASSERT_TRUE(latest);
+                           ASSERT_EQ(data.device_name,
+                                     "com.android.apex.test_package@2.chroot");
+                           ASSERT_THAT(data.loop_name, StartsWith("/dev"));
+                         });
 }
 
 }  // namespace apex
