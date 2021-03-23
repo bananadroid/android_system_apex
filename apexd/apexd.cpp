@@ -1563,6 +1563,7 @@ Result<void> ActivateApexPackages(
 Result<void> ActivateMissingApexes(
     const std::vector<std::reference_wrapper<const ApexFile>>& apexes,
     bool is_ota_chroot) {
+  LOG(INFO) << "Trying to activate pre-installed versions of missing apexes";
   const auto& file_repository = ApexFileRepository::GetInstance();
   const auto& activated_apexes = GetActivePackagesMap();
   std::vector<std::reference_wrapper<const ApexFile>> fallback_apexes;
@@ -2574,7 +2575,6 @@ void OnStart() {
     if (!revert_status.ok()) {
       LOG(ERROR) << "Failed to revert : " << revert_status.error();
     }
-    LOG(INFO) << "Trying to activate pre-installed versions of missing apexes";
     auto retry_status = ActivateMissingApexes(activation_list,
                                               /* is_ota_chroot= */ false);
     if (!retry_status.ok()) {
@@ -2985,10 +2985,17 @@ int OnOtaChrootBootstrap(const std::vector<std::string>& built_in_dirs,
       SelectApexForActivation(instance.AllApexFilesByName(), instance);
   auto activate_status = ActivateApexPackages(activation_list,
                                               /* is_ota_chroot= */ true);
+
+  int ret = 0;
   if (!activate_status.ok()) {
     LOG(ERROR) << "Failed to activate apex packages : "
                << activate_status.error();
-    return 1;
+    ret = 1;
+    auto retry_status = ActivateMissingApexes(activation_list,
+                                              /* is_ota_chroot= */ true);
+    if (!retry_status.ok()) {
+      LOG(ERROR) << retry_status.error();
+    }
   }
 
   // There are a bunch of places that are producing apex-info.xml file.
@@ -3038,7 +3045,7 @@ int OnOtaChrootBootstrap(const std::vector<std::string>& built_in_dirs,
     return 1;
   }
 
-  return 0;
+  return ret;
 }
 
 android::apex::MountedApexDatabase& GetApexDatabaseForTesting() {
