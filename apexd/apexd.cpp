@@ -1509,25 +1509,10 @@ std::vector<Result<void>> ActivateApexWorker(
 Result<void> ActivateApexPackages(
     const std::vector<std::reference_wrapper<const ApexFile>>& apexes,
     bool is_ota_chroot) {
-  const auto& packages_with_code = GetActivePackagesMap();
-  size_t skipped_cnt = 0;
   std::queue<const ApexFile*> apex_queue;
   std::mutex apex_queue_mutex;
 
   for (const ApexFile& apex : apexes) {
-    if (!apex.GetManifest().providesharedapexlibs()) {
-      uint64_t new_version =
-          static_cast<uint64_t>(apex.GetManifest().version());
-      const auto& it = packages_with_code.find(apex.GetManifest().name());
-      if (it != packages_with_code.end() && it->second >= new_version) {
-        LOG(INFO) << "Skipping activation of " << apex.GetPath()
-                  << " same package with higher version " << it->second
-                  << " is already active";
-        skipped_cnt++;
-        continue;
-      }
-    }
-
     apex_queue.emplace(&apex);
   }
 
@@ -1568,9 +1553,37 @@ Result<void> ActivateApexPackages(
   if (failed_cnt > 0) {
     return Error() << "Failed to activate " << failed_cnt << " APEX packages";
   }
-  LOG(INFO) << "Activated " << activated_cnt
-            << " packages. Skipped: " << skipped_cnt;
+  LOG(INFO) << "Activated " << activated_cnt << " packages.";
   return {};
+}
+
+// A fallback function in case some of the apexes failed to activate. For all
+// such apexes that were coming from /data partition we will attempt to activate
+// their corresponding pre-installed copies.
+Result<void> ActivateMissingApexes(
+    const std::vector<std::reference_wrapper<const ApexFile>>& apexes,
+    bool is_ota_chroot) {
+  const auto& file_repository = ApexFileRepository::GetInstance();
+  const auto& activated_apexes = GetActivePackagesMap();
+  std::vector<std::reference_wrapper<const ApexFile>> fallback_apexes;
+  for (const auto& apex_ref : apexes) {
+    const auto& apex = apex_ref.get();
+    if (apex.GetManifest().providesharedapexlibs()) {
+      // We must mount both versions of sharedlibs apex anyway. Not much we can
+      // do here.
+      continue;
+    }
+    if (file_repository.IsPreInstalledApex(apex)) {
+      // We tried to activate pre-installed apex in the first place. No need to
+      // try again.
+      continue;
+    }
+    const std::string& name = apex.GetManifest().name();
+    if (activated_apexes.find(name) == activated_apexes.end()) {
+      fallback_apexes.push_back(file_repository.GetPreInstalledApex(name));
+    }
+  }
+  return ActivateApexPackages(fallback_apexes, is_ota_chroot);
 }
 
 }  // namespace
@@ -2554,6 +2567,12 @@ void OnStart() {
     Result<void> revert_status = RevertActiveSessionsAndReboot("");
     if (!revert_status.ok()) {
       LOG(ERROR) << "Failed to revert : " << revert_status.error();
+    }
+    LOG(INFO) << "Trying to activate pre-installed versions of missing apexes";
+    auto retry_status = ActivateMissingApexes(activation_list,
+                                              /* is_ota_chroot= */ false);
+    if (!retry_status.ok()) {
+      LOG(ERROR) << retry_status.error();
     }
   }
 
