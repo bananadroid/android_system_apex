@@ -89,6 +89,7 @@ using android::base::ParseUint;
 using android::base::ReadFully;
 using android::base::RemoveFileIfExists;
 using android::base::Result;
+using android::base::SetProperty;
 using android::base::StringPrintf;
 using android::base::unique_fd;
 using android::dm::DeviceMapper;
@@ -113,6 +114,8 @@ static constexpr const char* kDmVerityRestartOnCorruption =
     "restart_on_corruption";
 
 MountedApexDatabase gMountedApexes;
+
+std::optional<ApexdConfig> gConfig;
 
 CheckpointInterface* gVoldService;
 bool gSupportsFsCheckpoints = false;
@@ -971,6 +974,8 @@ Result<void> UnmountPackage(const ApexFile& apex, bool allow_latest) {
 }
 
 }  // namespace
+
+void SetConfig(const ApexdConfig& config) { gConfig = config; }
 
 Result<void> MountPackage(const ApexFile& apex, const std::string& mount_point,
                           const std::string& device_name) {
@@ -2494,8 +2499,8 @@ std::vector<ApexFile> ProcessCompressedApex(
 
 void OnStart() {
   LOG(INFO) << "Marking APEXd as starting";
-  if (!android::base::SetProperty(kApexStatusSysprop, kApexStatusStarting)) {
-    PLOG(ERROR) << "Failed to set " << kApexStatusSysprop << " to "
+  if (!SetProperty(gConfig->apex_status_sysprop, kApexStatusStarting)) {
+    PLOG(ERROR) << "Failed to set " << gConfig->apex_status_sysprop << " to "
                 << kApexStatusStarting;
   }
 
@@ -2525,7 +2530,7 @@ void OnStart() {
   // them to /data/apex/active first.
   ScanStagedSessionsDirAndStage();
   if (auto status = ApexFileRepository::GetInstance().AddDataApex(
-          kActiveApexPackagesDataDir);
+          gConfig->active_apex_data_dir);
       !status.ok()) {
     LOG(ERROR) << "Failed to collect data APEX files : " << status.error();
   }
@@ -2610,8 +2615,8 @@ void OnAllPackagesActivated(bool is_bootstrap) {
   // apexes. Other components that need to use APEXs should wait for the
   // ready state instead.
   LOG(INFO) << "Marking APEXd as activated";
-  if (!android::base::SetProperty(kApexStatusSysprop, kApexStatusActivated)) {
-    PLOG(ERROR) << "Failed to set " << kApexStatusSysprop << " to "
+  if (!SetProperty(gConfig->apex_status_sysprop, kApexStatusActivated)) {
+    PLOG(ERROR) << "Failed to set " << gConfig->apex_status_sysprop << " to "
                 << kApexStatusActivated;
   }
 }
@@ -2623,8 +2628,8 @@ void OnAllPackagesReady() {
   // access. Or they may have a on-property trigger to delay a task until
   // APEXs become ready.
   LOG(INFO) << "Marking APEXd as ready";
-  if (!android::base::SetProperty(kApexStatusSysprop, kApexStatusReady)) {
-    PLOG(ERROR) << "Failed to set " << kApexStatusSysprop << " to "
+  if (!SetProperty(gConfig->apex_status_sysprop, kApexStatusReady)) {
+    PLOG(ERROR) << "Failed to set " << gConfig->apex_status_sysprop << " to "
                 << kApexStatusReady;
   }
 }
