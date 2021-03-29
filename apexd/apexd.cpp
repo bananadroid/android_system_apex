@@ -2986,11 +2986,9 @@ int OnOtaChrootBootstrap(const std::vector<std::string>& built_in_dirs,
   auto activate_status = ActivateApexPackages(activation_list,
                                               /* is_ota_chroot= */ true);
 
-  int ret = 0;
   if (!activate_status.ok()) {
     LOG(ERROR) << "Failed to activate apex packages : "
                << activate_status.error();
-    ret = 1;
     auto retry_status = ActivateMissingApexes(activation_list,
                                               /* is_ota_chroot= */ true);
     if (!retry_status.ok()) {
@@ -3045,7 +3043,7 @@ int OnOtaChrootBootstrap(const std::vector<std::string>& built_in_dirs,
     return 1;
   }
 
-  return ret;
+  return 0;
 }
 
 android::apex::MountedApexDatabase& GetApexDatabaseForTesting() {
