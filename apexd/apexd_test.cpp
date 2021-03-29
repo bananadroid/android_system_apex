@@ -1173,7 +1173,7 @@ TEST_F(ApexdMountTest,
   std::string apex_path_2 =
       AddPreInstalledApex("apex.apexd_test_different_app.apex");
 
-  ASSERT_EQ(OnOtaChrootBootstrap({GetBuiltInDir()}, GetDataDir()), 1);
+  ASSERT_EQ(OnOtaChrootBootstrap({GetBuiltInDir()}, GetDataDir()), 0);
   UnmountOnTearDown(apex_path_2);
 
   auto apex_mounts = GetApexMounts();
@@ -1210,7 +1210,7 @@ TEST_F(ApexdMountTest,
   std::string apex_path_3 =
       AddDataApex("apex.apexd_test_manifest_mismatch.apex");
 
-  ASSERT_EQ(OnOtaChrootBootstrap({GetBuiltInDir()}, GetDataDir()), 1);
+  ASSERT_EQ(OnOtaChrootBootstrap({GetBuiltInDir()}, GetDataDir()), 0);
   UnmountOnTearDown(apex_path_1);
   UnmountOnTearDown(apex_path_2);
 
