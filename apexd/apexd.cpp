@@ -2439,7 +2439,7 @@ std::vector<ApexFile> ProcessCompressedApex(
 
     // Files to clean up if processing fails for any reason
     std::vector<std::string> cleanup;
-    auto scope_gaurd = android::base::make_scope_guard([&cleanup] {
+    auto scope_guard = android::base::make_scope_guard([&cleanup] {
       for (const auto& file_path : cleanup) {
         RemoveFileIfExists(file_path);
       }
@@ -2491,7 +2491,7 @@ std::vector<ApexFile> ProcessCompressedApex(
     }
 
     // Decompressed APEX has been successfully processed. Accept it.
-    scope_gaurd.Disable();
+    scope_guard.Disable();
     decompressed_apex_list.emplace_back(std::move(*hardlinked_apex));
   }
   return std::move(decompressed_apex_list);
