@@ -1329,6 +1329,45 @@ TEST_F(ApexdMountTest, OnOtaChrootBootstrapCapexToApex) {
               UnorderedElementsAre(ApexInfoXmlEq(apex_info_xml_uncompressed)));
 }
 
+TEST_F(ApexdMountTest,
+       OnOtaChrootBootstrapDecompressedApexVersionDifferentThanCapex) {
+  TemporaryDir previous_built_in_dir;
+  PrepareCompressedApex("com.android.apex.compressed.v2.capex",
+                        previous_built_in_dir.path);
+  // Place a lower version capex in current built_in_dir, so that previously
+  // decompressed APEX has higher version but still doesn't get picked during
+  // selection.
+  std::string apex_path =
+      AddPreInstalledApex("com.android.apex.compressed.v1.capex");
+
+  ASSERT_EQ(OnOtaChrootBootstrap(), 0);
+
+  // Pre-installed CAPEX should be decompressed again and mounted from
+  // decompression_dir
+  std::string decompressed_active_apex =
+      StringPrintf("%s/com.android.apex.compressed@1%s",
+                   GetDecompressionDir().c_str(), kOtaApexPackageSuffix);
+  UnmountOnTearDown(decompressed_active_apex);
+
+  auto apex_mounts = GetApexMounts();
+  ASSERT_THAT(apex_mounts,
+              UnorderedElementsAre("/apex/com.android.apex.compressed",
+                                   "/apex/com.android.apex.compressed@1"));
+
+  ASSERT_EQ(access("/apex/apex-info-list.xml", F_OK), 0);
+  auto info_list =
+      com::android::apex::readApexInfoList("/apex/apex-info-list.xml");
+  ASSERT_TRUE(info_list.has_value());
+  auto apex_info_xml_decompressed = com::android::apex::ApexInfo(
+      /* moduleName= */ "com.android.apex.compressed",
+      /* modulePath= */ decompressed_active_apex,
+      /* preinstalledModulePath= */ apex_path,
+      /* versionCode= */ 1, /* versionName= */ "1",
+      /* isFactory= */ true, /* isActive= */ true);
+  ASSERT_THAT(info_list->getApexInfo(),
+              UnorderedElementsAre(ApexInfoXmlEq(apex_info_xml_decompressed)));
+}
+
 static std::string GetSelinuxContext(const std::string& file) {
   char* ctx;
   if (getfilecon(file.c_str(), &ctx) < 0) {
@@ -1966,6 +2005,46 @@ TEST_F(ApexdMountTest, OnStartCapexToApex) {
                            ASSERT_TRUE(latest);
                            ASSERT_EQ(data.full_path, apex_path);
                            ASSERT_THAT(data.device_name, IsEmpty());
+                         });
+}
+
+// Test scenario when decompressed version has different version than
+// pre-installed CAPEX
+TEST_F(ApexdMountTest, OnStartDecompressedApexVersionDifferentThanCapex) {
+  MockCheckpointInterface checkpoint_interface;
+  // Need to call InitializeVold before calling OnStart
+  InitializeVold(&checkpoint_interface);
+
+  TemporaryDir previous_built_in_dir;
+  PrepareCompressedApex("com.android.apex.compressed.v2.capex",
+                        previous_built_in_dir.path);
+  auto apex_path = AddPreInstalledApex("com.android.apex.compressed.v1.capex");
+
+  ASSERT_RESULT_OK(
+      ApexFileRepository::GetInstance().AddPreInstalledApex({GetBuiltInDir()}));
+
+  OnStart();
+
+  // Existing higher version decompressed APEX should be ignored and new
+  // pre-installed CAPEX should be decompressed and mounted
+  std::string decompressed_active_apex =
+      StringPrintf("%s/com.android.apex.compressed@1%s", GetDataDir().c_str(),
+                   kDecompressedApexPackageSuffix);
+  UnmountOnTearDown(decompressed_active_apex);
+
+  ASSERT_EQ(GetProperty(kTestApexdStatusSysprop, ""), "starting");
+  auto apex_mounts = GetApexMounts();
+  ASSERT_THAT(apex_mounts,
+              UnorderedElementsAre("/apex/com.android.apex.compressed",
+                                   "/apex/com.android.apex.compressed@1"));
+  auto& db = GetApexDatabaseForTesting();
+  // Check that it was mounted from newly decompressed apex.
+  db.ForallMountedApexes("com.android.apex.compressed",
+                         [&](const MountedApexData& data, bool latest) {
+                           ASSERT_TRUE(latest);
+                           ASSERT_EQ(data.full_path, decompressed_active_apex);
+                           ASSERT_EQ(data.device_name,
+                                     "com.android.apex.compressed@1");
                          });
 }
 
