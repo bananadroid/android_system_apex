@@ -2465,12 +2465,14 @@ std::vector<ApexFile> ProcessCompressedApex(
     });
 
     // Decompress them to kApexDecompressedDir
-    const auto dest_path_decompressed = StringPrintf(
-        "%s/%s%s", decompression_dir.c_str(),
-        GetPackageId(apex_file.GetManifest()).c_str(), kApexPackageSuffix);
-    const auto& dest_path_active = StringPrintf(
-        "%s/%s%s", active_apex_dir.c_str(),
-        GetPackageId(apex_file.GetManifest()).c_str(), kApexPackageSuffix);
+    const auto dest_path_decompressed =
+        StringPrintf("%s/%s%s", decompression_dir.c_str(),
+                     GetPackageId(apex_file.GetManifest()).c_str(),
+                     kDecompressedApexPackageSuffix);
+    const auto& dest_path_active =
+        StringPrintf("%s/%s%s", active_apex_dir.c_str(),
+                     GetPackageId(apex_file.GetManifest()).c_str(),
+                     kDecompressedApexPackageSuffix);
     cleanup.push_back(dest_path_decompressed);
     cleanup.push_back(dest_path_active);
 
