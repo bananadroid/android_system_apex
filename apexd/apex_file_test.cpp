@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <limits>
 #include <string>
 
 #include <android-base/file.h>
@@ -76,6 +77,62 @@ TEST_P(ApexFileTest, GetOffsetOfSimplePackage) {
 
   EXPECT_EQ(zip_image_offset, apex_file->GetImageOffset().value());
   EXPECT_EQ(zip_image_size, apex_file->GetImageSize().value());
+}
+
+TEST_P(ApexFileTest, OpenWithSize) {
+  const std::string file_path = kTestDataDir + GetParam().prefix + ".apex";
+  Result<ApexFile> apex_file = ApexFile::Open(file_path);
+  ASSERT_RESULT_OK(apex_file);
+
+  auto size = GetFileSize(file_path);
+
+  TemporaryFile temp_file;
+  {
+    // Create a temp file with padding at the end
+    std::ofstream out(temp_file.path);
+    std::ifstream in(file_path, std::ios::binary);
+    out << in.rdbuf();
+    out << std::string(10, 0);  // ten zeros.
+  }
+
+  Result<ApexFile> apex_file_sized = ApexFile::Open(temp_file.path, *size);
+  ASSERT_RESULT_OK(apex_file_sized);
+
+  EXPECT_EQ(apex_file->GetImageOffset(), apex_file_sized->GetImageOffset());
+  EXPECT_EQ(apex_file->GetImageSize(), apex_file_sized->GetImageSize());
+}
+
+TEST_P(ApexFileTest, OpenWithWrongSize) {
+  const std::string file_path = kTestDataDir + GetParam().prefix + ".apex";
+  Result<ApexFile> apex_file = ApexFile::Open(file_path);
+  ASSERT_RESULT_OK(apex_file);
+
+  auto size = GetFileSize(file_path);
+
+  Result<ApexFile> undersized = ApexFile::Open(file_path, *size - 1);
+  ASSERT_FALSE(undersized.ok());
+  ASSERT_THAT(undersized.error().message(),
+              ::testing::HasSubstr("Failed to open package"));
+
+  Result<ApexFile> supersized =
+      ApexFile::Open(file_path, std::numeric_limits<uint32_t>::max());
+  ASSERT_FALSE(supersized.ok());
+  ASSERT_THAT(supersized.error().message(),
+              ::testing::HasSubstr("Failed to open package"));
+
+  TemporaryFile temp_file;
+  {
+    // Create a temp file with padding at the end
+    std::ofstream out(temp_file.path);
+    std::ifstream in(file_path, std::ios::binary);
+    out << in.rdbuf();
+    out << std::string(10, 0);  // ten zeros.
+  }
+  // temp_file has padding at the end, so need the exact size of zip archive
+  Result<ApexFile> missing_size = ApexFile::Open(temp_file.path);
+  ASSERT_FALSE(missing_size.ok());
+  ASSERT_THAT(missing_size.error().message(),
+              ::testing::HasSubstr("Failed to open package"));
 }
 
 TEST(ApexFileTest, GetOffsetMissingFile) {
