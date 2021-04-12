@@ -77,7 +77,8 @@ Result<std::string> RetrieveFsType(borrowed_fd fd, int32_t image_offset) {
 
 }  // namespace
 
-Result<ApexFile> ApexFile::Open(const std::string& path) {
+Result<ApexFile> ApexFile::Open(const std::string& path,
+                                std::optional<uint32_t> size) {
   std::optional<int32_t> image_offset;
   std::optional<size_t> image_size;
   std::string manifest_content;
@@ -87,14 +88,19 @@ Result<ApexFile> ApexFile::Open(const std::string& path) {
 
   unique_fd fd(open(path.c_str(), O_RDONLY | O_BINARY | O_CLOEXEC));
   if (fd < 0) {
-    return Error() << "Failed to open package " << path << ": "
-                   << "I/O error";
+    return ErrnoError() << "Failed to open package " << path << ": "
+                        << "I/O error";
   }
 
   ZipArchiveHandle handle;
   auto handle_guard =
       android::base::make_scope_guard([&handle] { CloseArchive(handle); });
-  int ret = OpenArchiveFd(fd.get(), path.c_str(), &handle, false);
+  int ret =
+      size.has_value()
+          ? OpenArchiveFdRange(fd.get(), path.c_str(), &handle, size.value(),
+                               /*offset=*/0, /*assume_ownership=*/false)
+          : OpenArchiveFd(fd.get(), path.c_str(), &handle,
+                          /*assume_ownership=*/false);
   if (ret < 0) {
     return Error() << "Failed to open package " << path << ": "
                    << ErrorCodeString(ret);

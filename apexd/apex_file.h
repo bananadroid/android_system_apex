@@ -18,6 +18,7 @@
 #define ANDROID_APEXD_APEX_FILE_H_
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -41,7 +42,13 @@ struct ApexVerityData {
 // the content.
 class ApexFile {
  public:
-  static android::base::Result<ApexFile> Open(const std::string& path);
+  // Opens an APEX file from the |path|. Optional |size| param tells the size of
+  // the file. In most cases, you don't have to pass the size of the file, but
+  // in case you know the size but the file has padded data at the end, you can
+  // pass the size.
+  static android::base::Result<ApexFile> Open(
+      const std::string& path, std::optional<uint32_t> size = std::nullopt);
+
   ApexFile() = delete;
   ApexFile(ApexFile&&) = default;
   ApexFile& operator=(ApexFile&&) = default;
