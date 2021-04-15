@@ -1603,9 +1603,7 @@ Result<void> ActivateMissingApexes(const std::vector<ApexFileRef>& apexes,
   }
   std::vector<ApexFile> decompressed_apex;
   if (!compressed_apex.empty()) {
-    decompressed_apex =
-        ProcessCompressedApex(compressed_apex, gConfig->decompression_dir,
-                              gConfig->active_apex_data_dir);
+    decompressed_apex = ProcessCompressedApex(compressed_apex);
     for (const ApexFile& apex_file : decompressed_apex) {
       fallback_apexes.emplace_back(std::cref(apex_file));
     }
@@ -2429,12 +2427,11 @@ std::vector<ApexFileRef> SelectApexForActivation(
  * link it to kActiveApexPackagesDataDir. Returns list of decompressed APEX.
  */
 std::vector<ApexFile> ProcessCompressedApex(
-    const std::vector<ApexFileRef>& compressed_apex,
-    const std::string& decompression_dir, const std::string& active_apex_dir) {
+    const std::vector<ApexFileRef>& compressed_apex) {
   LOG(INFO) << "Processing compressed APEX";
 
   // Clean up reserved space before decompressing capex
-  if (auto ret = DeleteDirContent(kOtaReservedDir); !ret.ok()) {
+  if (auto ret = DeleteDirContent(gConfig->ota_reserved_dir); !ret.ok()) {
     LOG(ERROR) << "Failed to clean up reserved space: " << ret.error();
   }
 
@@ -2454,11 +2451,11 @@ std::vector<ApexFile> ProcessCompressedApex(
 
     // Decompress them to kApexDecompressedDir
     const auto dest_path_decompressed =
-        StringPrintf("%s/%s%s", decompression_dir.c_str(),
+        StringPrintf("%s/%s%s", gConfig->decompression_dir,
                      GetPackageId(apex_file.GetManifest()).c_str(),
                      kDecompressedApexPackageSuffix);
     const auto& dest_path_active =
-        StringPrintf("%s/%s%s", active_apex_dir.c_str(),
+        StringPrintf("%s/%s%s", gConfig->active_apex_data_dir,
                      GetPackageId(apex_file.GetManifest()).c_str(),
                      kDecompressedApexPackageSuffix);
     cleanup.push_back(dest_path_decompressed);
@@ -2575,9 +2572,7 @@ void OnStart() {
   }
   std::vector<ApexFile> decompressed_apex;
   if (!compressed_apex.empty()) {
-    decompressed_apex =
-        ProcessCompressedApex(compressed_apex, gConfig->decompression_dir,
-                              gConfig->active_apex_data_dir);
+    decompressed_apex = ProcessCompressedApex(compressed_apex);
     for (const ApexFile& apex_file : decompressed_apex) {
       activation_list.emplace_back(std::cref(apex_file));
     }

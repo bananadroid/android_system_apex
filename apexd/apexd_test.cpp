@@ -83,17 +83,17 @@ class ApexdUnitTest : public ::testing::Test {
     built_in_dir_ = StringPrintf("%s/pre-installed-apex", td_.path);
     data_dir_ = StringPrintf("%s/data-apex", td_.path);
     decompression_dir_ = StringPrintf("%s/decompressed-apex", td_.path);
+    ota_reserved_dir_ = StringPrintf("%s/ota-reserved", td_.path);
     hash_tree_dir_ = StringPrintf("%s/apex-hash-tree", td_.path);
-    config_ = {kTestApexdStatusSysprop,
-               {built_in_dir_},
-               data_dir_.c_str(),
-               decompression_dir_.c_str(),
-               hash_tree_dir_.c_str()};
+    config_ = {kTestApexdStatusSysprop,   {built_in_dir_},
+               data_dir_.c_str(),         decompression_dir_.c_str(),
+               ota_reserved_dir_.c_str(), hash_tree_dir_.c_str()};
   }
 
   const std::string& GetBuiltInDir() { return built_in_dir_; }
   const std::string& GetDataDir() { return data_dir_; }
   const std::string& GetDecompressionDir() { return decompression_dir_; }
+  const std::string& GetOtaReservedDir() { return ota_reserved_dir_; }
 
   std::string AddPreInstalledApex(const std::string& apex_name) {
     fs::copy(GetTestFile(apex_name), built_in_dir_);
@@ -105,6 +105,17 @@ class ApexdUnitTest : public ::testing::Test {
     return StringPrintf("%s/%s", data_dir_.c_str(), apex_name.c_str());
   }
 
+  // Copies the compressed apex to |built_in_dir| and decompresses it to
+  // |decompressed_dir| and then hard links to |target_dir|
+  void PrepareCompressedApex(const std::string& name) {
+    fs::copy(GetTestFile(name), built_in_dir_);
+    auto compressed_apex = ApexFile::Open(
+        StringPrintf("%s/%s", built_in_dir_.c_str(), name.c_str()));
+    std::vector<ApexFileRef> compressed_apex_list;
+    compressed_apex_list.emplace_back(std::cref(*compressed_apex));
+    auto return_value = ProcessCompressedApex(compressed_apex_list);
+  }
+
  protected:
   void SetUp() override {
     SetConfig(config_);
@@ -112,6 +123,7 @@ class ApexdUnitTest : public ::testing::Test {
     ASSERT_EQ(mkdir(built_in_dir_.c_str(), 0755), 0);
     ASSERT_EQ(mkdir(data_dir_.c_str(), 0755), 0);
     ASSERT_EQ(mkdir(decompression_dir_.c_str(), 0755), 0);
+    ASSERT_EQ(mkdir(ota_reserved_dir_.c_str(), 0755), 0);
     ASSERT_EQ(mkdir(hash_tree_dir_.c_str(), 0755), 0);
   }
 
@@ -120,6 +132,7 @@ class ApexdUnitTest : public ::testing::Test {
   std::string built_in_dir_;
   std::string data_dir_;
   std::string decompression_dir_;
+  std::string ota_reserved_dir_;
   std::string hash_tree_dir_;
   ApexdConfig config_;
 };
@@ -226,8 +239,7 @@ TEST_F(ApexdUnitTest, ProcessCompressedApex) {
 
   std::vector<ApexFileRef> compressed_apex_list;
   compressed_apex_list.emplace_back(std::cref(*compressed_apex));
-  auto return_value = ProcessCompressedApex(
-      compressed_apex_list, GetDecompressionDir(), GetDataDir());
+  auto return_value = ProcessCompressedApex(compressed_apex_list);
 
   std::string decompressed_file_path = StringPrintf(
       "%s/com.android.apex.compressed@1%s", GetDecompressionDir().c_str(),
@@ -267,8 +279,7 @@ TEST_F(ApexdUnitTest, ProcessCompressedApexRunsVerification) {
 
   std::vector<ApexFileRef> compressed_apex_list;
   compressed_apex_list.emplace_back(std::cref(*compressed_apex_mismatch_key));
-  auto return_value = ProcessCompressedApex(
-      compressed_apex_list, GetDecompressionDir(), GetDataDir());
+  auto return_value = ProcessCompressedApex(compressed_apex_list);
   ASSERT_EQ(return_value.size(), 0u);
 }
 
@@ -278,8 +289,7 @@ TEST_F(ApexdUnitTest, ProcessCompressedApexCanBeCalledMultipleTimes) {
 
   std::vector<ApexFileRef> compressed_apex_list;
   compressed_apex_list.emplace_back(std::cref(*compressed_apex));
-  auto return_value = ProcessCompressedApex(
-      compressed_apex_list, GetDecompressionDir(), GetDataDir());
+  auto return_value = ProcessCompressedApex(compressed_apex_list);
   ASSERT_EQ(return_value.size(), 1u);
 
   // Capture the creation time of the decompressed APEX
@@ -292,8 +302,7 @@ TEST_F(ApexdUnitTest, ProcessCompressedApexCanBeCalledMultipleTimes) {
                    << decompressed_apex_path;
 
   // Now try to decompress the same capex again. It should not fail.
-  return_value = ProcessCompressedApex(compressed_apex_list,
-                                       GetDecompressionDir(), GetDataDir());
+  return_value = ProcessCompressedApex(compressed_apex_list);
   ASSERT_EQ(return_value.size(), 1u);
 
   // Ensure the decompressed APEX file did not change
@@ -385,23 +394,6 @@ TEST_F(ApexdUnitTest,
       << "Unlinked decompressed file did not get deleted";
 }
 
-namespace {
-// Copies the compressed apex to |built_in_dir| and decompresses it to
-// |decompressed_dir| and then hard links to |data_dir|
-void PrepareCompressedApex(const std::string& name,
-                           const std::string& built_in_dir,
-                           const std::string& data_dir,
-                           const std::string& decompressed_dir) {
-  fs::copy(GetTestFile(name), built_in_dir);
-  auto compressed_apex =
-      ApexFile::Open(StringPrintf("%s/%s", built_in_dir.c_str(), name.c_str()));
-  std::vector<ApexFileRef> compressed_apex_list;
-  compressed_apex_list.emplace_back(std::cref(*compressed_apex));
-  auto return_value =
-      ProcessCompressedApex(compressed_apex_list, decompressed_dir, data_dir);
-}
-}  // namespace
-
 TEST_F(ApexdUnitTest, ShouldAllocateSpaceForDecompressionNewApex) {
   auto& instance = ApexFileRepository::GetInstance();
   ASSERT_TRUE(IsOk(instance.AddPreInstalledApex({GetBuiltInDir()})));
@@ -450,8 +442,7 @@ TEST_F(ApexdUnitTest,
 
 TEST_F(ApexdUnitTest, ShouldAllocateSpaceForDecompressionVersionCompare) {
   // Prepare fake pre-installed apex
-  PrepareCompressedApex("com.android.apex.compressed.v1.capex", GetBuiltInDir(),
-                        GetDataDir(), GetDecompressionDir());
+  PrepareCompressedApex("com.android.apex.compressed.v1.capex");
   auto& instance = ApexFileRepository::GetInstance();
   ASSERT_TRUE(IsOk(instance.AddPreInstalledApex({GetBuiltInDir()})));
   ASSERT_TRUE(IsOk(instance.AddDataApex(GetDataDir())));
@@ -1644,8 +1635,7 @@ TEST_F(ApexdMountTest, OnStartFallbackToAlreadyDecompressedCapex) {
   // Need to call InitializeVold before calling OnStart
   InitializeVold(&checkpoint_interface);
 
-  PrepareCompressedApex("com.android.apex.compressed.v1.capex", GetBuiltInDir(),
-                        GetDataDir(), GetDecompressionDir());
+  PrepareCompressedApex("com.android.apex.compressed.v1.capex");
   AddDataApex("com.android.apex.compressed.v2_manifest_mismatch.apex");
 
   ASSERT_RESULT_OK(
