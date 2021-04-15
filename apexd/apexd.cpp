@@ -2991,16 +2991,18 @@ Result<void> ReserveSpaceForCompressedApex(int64_t size,
   return {};
 }
 
-int OnOtaChrootBootstrap(const std::vector<std::string>& built_in_dirs,
-                         const std::string& apex_data_dir) {
+int OnOtaChrootBootstrap() {
   auto& instance = ApexFileRepository::GetInstance();
-  if (auto status = instance.AddPreInstalledApex(built_in_dirs); !status.ok()) {
+  if (auto status = instance.AddPreInstalledApex(gConfig->apex_built_in_dirs);
+      !status.ok()) {
     LOG(ERROR) << "Failed to scan pre-installed apexes from "
-               << Join(built_in_dirs, ',');
+               << Join(gConfig->apex_built_in_dirs, ',');
     return 1;
   }
-  if (auto status = instance.AddDataApex(apex_data_dir); !status.ok()) {
-    LOG(ERROR) << "Failed to scan upgraded apexes from " << apex_data_dir;
+  if (auto status = instance.AddDataApex(gConfig->active_apex_data_dir);
+      !status.ok()) {
+    LOG(ERROR) << "Failed to scan upgraded apexes from "
+               << gConfig->active_apex_data_dir;
     // Failing to scan upgraded apexes is not fatal, since we can still try to
     // run otapreopt using only pre-installed apexes. Worst case, apps will be
     // re-optimized on next boot.
