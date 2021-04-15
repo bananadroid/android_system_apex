@@ -604,8 +604,12 @@ class ApexdMountTest : public ::testing::Test {
     data_dir_ = StringPrintf("%s/data-apex", td_.path);
     decompression_dir_ = StringPrintf("%s/decompressed-apex", td_.path);
     hash_tree_dir_ = StringPrintf("%s/apex-hash-tree", td_.path);
-    config = {kTestApexdStatusSysprop, data_dir_.c_str(),
-              decompression_dir_.c_str(), hash_tree_dir_.c_str()};
+
+    config_ = {kTestApexdStatusSysprop,
+               {built_in_dir_},
+               data_dir_.c_str(),
+               decompression_dir_.c_str(),
+               hash_tree_dir_.c_str()};
   }
 
   const std::string& GetBuiltInDir() { return built_in_dir_; }
@@ -628,7 +632,7 @@ class ApexdMountTest : public ::testing::Test {
 
  protected:
   void SetUp() final {
-    SetConfig(config);
+    SetConfig(config_);
     ApexFileRepository::GetInstance().Reset(decompression_dir_);
     GetApexDatabaseForTesting().Reset();
     ASSERT_TRUE(IsOk(SetUpApexTestEnvironment()));
@@ -653,7 +657,7 @@ class ApexdMountTest : public ::testing::Test {
   std::string data_dir_;
   std::string decompression_dir_;
   std::string hash_tree_dir_;
-  ApexdConfig config;
+  ApexdConfig config_;
   std::vector<std::string> to_unmount_;
 };
 
@@ -718,9 +722,7 @@ TEST_F(ApexdMountTest, OnOtaChrootBootstrapOnlyPreInstalledApexes) {
   std::string apex_path_2 =
       AddPreInstalledApex("apex.apexd_test_different_app.apex");
 
-  ASSERT_EQ(
-      OnOtaChrootBootstrap({GetBuiltInDir()}, "/data/local/tmp/does-not-exist"),
-      0);
+  ASSERT_EQ(OnOtaChrootBootstrap(), 0);
   UnmountOnTearDown(apex_path_1);
   UnmountOnTearDown(apex_path_2);
 
@@ -755,7 +757,7 @@ TEST_F(ApexdMountTest, OnOtaChrootBootstrapFailsToScanPreInstalledApexes) {
   AddPreInstalledApex("apex.apexd_test.apex");
   AddPreInstalledApex("apex.apexd_test_corrupt_superblock_apex.apex");
 
-  ASSERT_EQ(OnOtaChrootBootstrap({GetBuiltInDir()}, "/data/local/whatevs"), 1);
+  ASSERT_EQ(OnOtaChrootBootstrap(), 1);
 }
 
 TEST_F(ApexdMountTest, OnOtaChrootBootstrapDataHasHigherVersion) {
@@ -764,7 +766,7 @@ TEST_F(ApexdMountTest, OnOtaChrootBootstrapDataHasHigherVersion) {
       AddPreInstalledApex("apex.apexd_test_different_app.apex");
   std::string apex_path_3 = AddDataApex("apex.apexd_test_v2.apex");
 
-  ASSERT_EQ(OnOtaChrootBootstrap({GetBuiltInDir()}, GetDataDir()), 0);
+  ASSERT_EQ(OnOtaChrootBootstrap(), 0);
 
   UnmountOnTearDown(apex_path_2);
   UnmountOnTearDown(apex_path_3);
@@ -809,7 +811,7 @@ TEST_F(ApexdMountTest, OnOtaChrootBootstrapDataHasSameVersion) {
       AddPreInstalledApex("apex.apexd_test_different_app.apex");
   std::string apex_path_3 = AddDataApex("apex.apexd_test.apex");
 
-  ASSERT_EQ(OnOtaChrootBootstrap({GetBuiltInDir()}, GetDataDir()), 0);
+  ASSERT_EQ(OnOtaChrootBootstrap(), 0);
 
   UnmountOnTearDown(apex_path_2);
   UnmountOnTearDown(apex_path_3);
@@ -854,7 +856,7 @@ TEST_F(ApexdMountTest, OnOtaChrootBootstrapSystemHasHigherVersion) {
       AddPreInstalledApex("apex.apexd_test_different_app.apex");
   AddDataApex("apex.apexd_test.apex");
 
-  ASSERT_EQ(OnOtaChrootBootstrap({GetBuiltInDir()}, GetDataDir()), 0);
+  ASSERT_EQ(OnOtaChrootBootstrap(), 0);
 
   UnmountOnTearDown(apex_path_1);
   UnmountOnTearDown(apex_path_2);
@@ -893,7 +895,7 @@ TEST_F(ApexdMountTest, OnOtaChrootBootstrapDataHasSameVersionButDifferentKey) {
       AddPreInstalledApex("apex.apexd_test_different_app.apex");
   AddDataApex("apex.apexd_test_different_key.apex");
 
-  ASSERT_EQ(OnOtaChrootBootstrap({GetBuiltInDir()}, GetDataDir()), 0);
+  ASSERT_EQ(OnOtaChrootBootstrap(), 0);
 
   UnmountOnTearDown(apex_path_1);
   UnmountOnTearDown(apex_path_2);
@@ -940,7 +942,7 @@ TEST_F(ApexdMountTest,
     ASSERT_EQ(static_cast<uint64_t>(apex->GetManifest().version()), 2ULL);
   }
 
-  ASSERT_EQ(OnOtaChrootBootstrap({GetBuiltInDir()}, GetDataDir()), 0);
+  ASSERT_EQ(OnOtaChrootBootstrap(), 0);
 
   UnmountOnTearDown(apex_path_1);
   UnmountOnTearDown(apex_path_2);
@@ -977,7 +979,7 @@ TEST_F(ApexdMountTest, OnOtaChrootBootstrapDataApexWithoutPreInstalledApex) {
   std::string apex_path_1 = AddPreInstalledApex("apex.apexd_test.apex");
   AddDataApex("apex.apexd_test_different_app.apex");
 
-  ASSERT_EQ(OnOtaChrootBootstrap({GetBuiltInDir()}, GetDataDir()), 0);
+  ASSERT_EQ(OnOtaChrootBootstrap(), 0);
 
   UnmountOnTearDown(apex_path_1);
 
@@ -1007,7 +1009,7 @@ TEST_F(ApexdMountTest, OnOtaChrootBootstrapPreInstalledSharedLibsApex) {
       "com.android.apex.test.sharedlibs_generated.v1.libvX.apex");
   std::string apex_path_3 = AddDataApex("apex.apexd_test_v2.apex");
 
-  ASSERT_EQ(OnOtaChrootBootstrap({GetBuiltInDir()}, GetDataDir()), 0);
+  ASSERT_EQ(OnOtaChrootBootstrap(), 0);
 
   UnmountOnTearDown(apex_path_2);
   UnmountOnTearDown(apex_path_3);
@@ -1086,7 +1088,7 @@ TEST_F(ApexdMountTest, OnOtaChrootBootstrapSharedLibsApexBothVersions) {
   std::string apex_path_4 =
       AddDataApex("com.android.apex.test.sharedlibs_generated.v2.libvY.apex");
 
-  ASSERT_EQ(OnOtaChrootBootstrap({GetBuiltInDir()}, GetDataDir()), 0);
+  ASSERT_EQ(OnOtaChrootBootstrap(), 0);
 
   UnmountOnTearDown(apex_path_2);
   UnmountOnTearDown(apex_path_3);
@@ -1191,7 +1193,7 @@ TEST_F(ApexdMountTest, OnOtaChrootBootstrapSelinuxLabelsAreCorrect) {
       "com.android.apex.test.sharedlibs_generated.v1.libvX.apex");
   std::string apex_path_3 = AddDataApex("apex.apexd_test_v2.apex");
 
-  ASSERT_EQ(OnOtaChrootBootstrap({GetBuiltInDir()}, GetDataDir()), 0);
+  ASSERT_EQ(OnOtaChrootBootstrap(), 0);
 
   EXPECT_EQ(GetSelinuxContext("/apex/apex-info-list.xml"),
             "u:object_r:apex_info_file:s0");
@@ -1211,7 +1213,7 @@ TEST_F(ApexdMountTest, OnOtaChrootBootstrapDmDevicesHaveCorrectName) {
       AddPreInstalledApex("apex.apexd_test_different_app.apex");
   std::string apex_path_3 = AddDataApex("apex.apexd_test_v2.apex");
 
-  ASSERT_EQ(OnOtaChrootBootstrap({GetBuiltInDir()}, GetDataDir()), 0);
+  ASSERT_EQ(OnOtaChrootBootstrap(), 0);
   UnmountOnTearDown(apex_path_2);
   UnmountOnTearDown(apex_path_3);
 
@@ -1241,7 +1243,7 @@ TEST_F(ApexdMountTest,
   std::string apex_path_2 =
       AddPreInstalledApex("apex.apexd_test_different_app.apex");
 
-  ASSERT_EQ(OnOtaChrootBootstrap({GetBuiltInDir()}, GetDataDir()), 0);
+  ASSERT_EQ(OnOtaChrootBootstrap(), 0);
   UnmountOnTearDown(apex_path_2);
 
   auto apex_mounts = GetApexMounts();
@@ -1278,7 +1280,7 @@ TEST_F(ApexdMountTest,
   std::string apex_path_3 =
       AddDataApex("apex.apexd_test_manifest_mismatch.apex");
 
-  ASSERT_EQ(OnOtaChrootBootstrap({GetBuiltInDir()}, GetDataDir()), 0);
+  ASSERT_EQ(OnOtaChrootBootstrap(), 0);
   UnmountOnTearDown(apex_path_1);
   UnmountOnTearDown(apex_path_2);
 
