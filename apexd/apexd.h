@@ -40,16 +40,15 @@ namespace apex {
 // this config should do the trick.
 struct ApexdConfig {
   const char* apex_status_sysprop;
+  std::vector<std::string> apex_built_in_dirs;
   const char* active_apex_data_dir;
   const char* decompression_dir;
   const char* apex_hash_tree_dir;
 };
 
-static constexpr const ApexdConfig kDefaultConfig = {
-    kApexStatusSysprop,
-    kActiveApexPackagesDataDir,
-    kApexDecompressedDir,
-    kApexHashTreeDir,
+static const ApexdConfig kDefaultConfig = {
+    kApexStatusSysprop,   kApexPackageBuiltinDirs, kActiveApexPackagesDataDir,
+    kApexDecompressedDir, kApexHashTreeDir,
 };
 
 class CheckpointInterface;
@@ -176,9 +175,7 @@ android::base::Result<void> ReserveSpaceForCompressedApex(
 // Activates apexes in otapreot_chroot environment.
 // TODO(b/172911822): support compressed apexes.
 // TODO(b/181182967): probably also need to support flattened apexes.
-int OnOtaChrootBootstrap(
-    const std::vector<std::string>& built_in_dirs = kApexPackageBuiltinDirs,
-    const std::string& apex_data_dir = kActiveApexPackagesDataDir);
+int OnOtaChrootBootstrap();
 
 android::apex::MountedApexDatabase& GetApexDatabaseForTesting();
 
