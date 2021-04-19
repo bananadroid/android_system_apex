@@ -60,6 +60,22 @@ class ApexFileRepository final {
   android::base::Result<void> AddPreInstalledApex(
       const std::vector<std::string>& prebuilt_dirs);
 
+  // Populate instance by collecting host-provided apex files via
+  // |signature_partition|. Host can provide its apexes to a VM instance via the
+  // virtual disk image which has partitions: (see
+  // /packages/modules/Virtualization/microdroid for the details)
+  //  - signature partition(/dev/block/vd*1) should be accessed via
+  //  /dev/block/by-name/signature.
+  //  - each subsequence partition(/dev/block/vd*{2,3,..}) represents an APEX
+  //  archive.
+  // It will fail if there is more than one apex with the same name in
+  // pre-installed and block apexes. Note: this call is **not thread safe** and
+  // is expected to be performed in a single thread during initialization of
+  // apexd. After initialization is finished, all queries to the instance are
+  // thread safe.
+  android::base::Result<void> AddBlockApex(
+      const std::string& signature_partition);
+
   // Populate instance by collecting data apex files from the given |data_dir|.
   // Note: this call is **not thread safe** and is expected to be performed in a
   // single thread during initialization of apexd. After initialization is
