@@ -25,6 +25,7 @@
 #include <android-base/result.h>
 #include <android-base/stringprintf.h>
 #include <android-base/strings.h>
+#include <microdroid/signature.h>
 
 #include "apex_constants.h"
 #include "apex_file.h"
@@ -98,6 +99,76 @@ android::base::Result<void> ApexFileRepository::AddPreInstalledApex(
     if (auto result = ScanBuiltInDir(dir); !result.ok()) {
       return result.error();
     }
+  }
+  return {};
+}
+
+Result<void> ApexFileRepository::AddBlockApex(
+    const std::string& signature_partition) {
+  // TODO(b/185069443) consider moving the logic to find disk_path from
+  // signature_partition to its own library
+  LOG(INFO) << "Scanning " << signature_partition << " for host apexes";
+  if (access(signature_partition.c_str(), F_OK) != 0 && errno == ENOENT) {
+    LOG(WARNING) << signature_partition << " does not exist. Skipping";
+    return {};
+  }
+
+  std::string signature_realpath;
+  if (!android::base::Realpath(signature_partition, &signature_realpath)) {
+    LOG(WARNING) << "Can't get realpath of " << signature_partition
+                 << ". Skipping";
+    return {};
+  }
+
+  std::string_view signature_path_view(signature_realpath);
+  if (!android::base::ConsumeSuffix(&signature_path_view, "1")) {
+    LOG(WARNING) << signature_realpath << " is not a first partition. Skipping";
+    return {};
+  }
+
+  const std::string disk_path(signature_path_view);
+
+  // The first partition is "signature".
+  auto signature =
+      android::microdroid::ReadMicrodroidSignature(signature_realpath);
+  if (!signature.ok()) {
+    LOG(WARNING) << "Failed to load signature from " << signature_realpath
+                 << ". Skipping: " << signature.error();
+    return {};
+  }
+
+  // subsequent partitions are APEX archives.
+  static constexpr const int kFirstApexPartition = 2;
+  for (int i = 0; i < signature->apexes_size(); i++) {
+    const android::microdroid::ApexSignature& apex_signature =
+        signature->apexes(i);
+
+    const std::string apex_path =
+        disk_path + std::to_string(i + kFirstApexPartition);
+    auto apex_file = ApexFile::Open(apex_path, apex_signature.size());
+    if (!apex_file.ok()) {
+      return Error() << "Failed to open " << apex_path << " : "
+                     << apex_file.error();
+    }
+
+    // When signature specifies the public key of the apex, it should match the
+    // bundled key. Otherwise we accept it.
+    if (apex_signature.publickey() != "" &&
+        apex_signature.publickey() != apex_file->GetBundledPublicKey()) {
+      return Error() << "public key doesn't match: " << apex_path;
+    }
+
+    // TODO(b/185873258): signature in repository to verify apexes with
+    // root_digest when given.
+
+    // APEX should be unique.
+    const std::string& name = apex_file->GetManifest().name();
+    auto it = pre_installed_store_.find(name);
+    if (it != pre_installed_store_.end()) {
+      return Error() << "duplicate found in " << it->second.GetPath();
+    }
+
+    pre_installed_store_.emplace(name, std::move(*apex_file));
   }
   return {};
 }

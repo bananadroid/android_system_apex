@@ -3109,6 +3109,7 @@ Result<void> ReserveSpaceForCompressedApex(int64_t size,
 // When running in the VM mode, we follow the minimal start-up operations.
 // - CreateSharedLibsApexDir
 // - AddPreInstalledApex: note that CAPEXes are not supported in the VM mode
+// - AddBlockApex
 // - ActivateApexPackages
 // - setprop apexd.status: activated/ready
 int OnStartInVmMode() {
@@ -3127,6 +3128,13 @@ int OnStartInVmMode() {
   if (auto status = instance.AddPreInstalledApex(gConfig->apex_built_in_dirs);
       !status.ok()) {
     LOG(ERROR) << "Failed to scan pre-installed APEX files: " << status.error();
+    return 1;
+  }
+
+  if (auto status =
+          instance.AddBlockApex(gConfig->vm_payload_signature_partition);
+      !status.ok()) {
+    LOG(ERROR) << "Failed to scan block APEX files: " << status.error();
     return 1;
   }
 
