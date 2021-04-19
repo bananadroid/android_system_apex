@@ -82,6 +82,11 @@ int HandleSubcommand(char** argv) {
     return result;
   }
 
+  if (strcmp("--vm", argv[1]) == 0) {
+    LOG(INFO) << "VM subcommand detected";
+    return android::apex::OnStartInVmMode();
+  }
+
   LOG(ERROR) << "Unknown subcommand: " << argv[1];
   return 1;
 }
