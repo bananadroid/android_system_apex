@@ -1796,5 +1796,39 @@ TEST_F(ApexdMountTest, UnmountAllSharedLibsApex) {
   ASSERT_EQ(new_apex_mounts.size(), 0u);
 }
 
+TEST_F(ApexdMountTest, OnStartInVmModeActivatesPreInstalled) {
+  MockCheckpointInterface checkpoint_interface;
+  // Need to call InitializeVold before calling OnStart
+  InitializeVold(&checkpoint_interface);
+
+  AddPreInstalledApex("apex.apexd_test.apex");
+  AddPreInstalledApex("apex.apexd_test_different_app.apex");
+  // In VM mode, we don't scan /data/apex
+  AddDataApex("apex.apexd_test_v2.apex");
+
+  ASSERT_EQ(0, OnStartInVmMode());
+
+  auto apex_mounts = GetApexMounts();
+  ASSERT_THAT(apex_mounts,
+              UnorderedElementsAre("/apex/com.android.apex.test_package",
+                                   "/apex/com.android.apex.test_package@1",
+                                   "/apex/com.android.apex.test_package_2",
+                                   "/apex/com.android.apex.test_package_2@1",
+                                   // Emits apex-info-list as well
+                                   "/apex/apex-info-list.xml"));
+
+  ASSERT_EQ(GetProperty(kTestApexdStatusSysprop, ""), "ready");
+}
+
+TEST_F(ApexdMountTest, OnStartInVmModeFailsWithCapex) {
+  MockCheckpointInterface checkpoint_interface;
+  // Need to call InitializeVold before calling OnStart
+  InitializeVold(&checkpoint_interface);
+
+  AddPreInstalledApex("com.android.apex.compressed.v2.capex");
+
+  ASSERT_EQ(1, OnStartInVmMode());
+}
+
 }  // namespace apex
 }  // namespace android
