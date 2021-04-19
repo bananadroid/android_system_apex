@@ -3106,6 +3106,44 @@ Result<void> ReserveSpaceForCompressedApex(int64_t size,
   return {};
 }
 
+// When running in the VM mode, we follow the minimal start-up operations.
+// - CreateSharedLibsApexDir
+// - AddPreInstalledApex: note that CAPEXes are not supported in the VM mode
+// - ActivateApexPackages
+// - setprop apexd.status: activated/ready
+int OnStartInVmMode() {
+  // waits for /dev/loop-control
+  loop::PreAllocateLoopDevices(0);
+
+  // Create directories for APEX shared libraries.
+  if (auto status = CreateSharedLibsApexDir(); !status.ok()) {
+    LOG(ERROR) << "Failed to create /apex/sharedlibs : " << status.ok();
+    return 1;
+  }
+
+  auto& instance = ApexFileRepository::GetInstance();
+
+  // Scan pre-installed apexes
+  if (auto status = instance.AddPreInstalledApex(gConfig->apex_built_in_dirs);
+      !status.ok()) {
+    LOG(ERROR) << "Failed to scan pre-installed APEX files: " << status.error();
+    return 1;
+  }
+
+  if (auto status = ActivateApexPackages(instance.GetPreInstalledApexFiles(),
+                                         /*is_ota_chroot=*/false);
+      !status.ok()) {
+    LOG(ERROR) << "Failed to activate apex packages : " << status.error();
+    return 1;
+  }
+
+  OnAllPackagesActivated(false);
+  // In VM mode, we don't run a separate --snapshotde mode.
+  // Instead, we mark apexd.status "ready" right now.
+  OnAllPackagesReady();
+  return 0;
+}
+
 int OnOtaChrootBootstrap() {
   auto& instance = ApexFileRepository::GetInstance();
   if (auto status = instance.AddPreInstalledApex(gConfig->apex_built_in_dirs);
