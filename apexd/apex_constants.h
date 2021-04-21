@@ -66,6 +66,9 @@ static constexpr const char* kApexStatusStarting = "starting";
 static constexpr const char* kApexStatusActivated = "activated";
 static constexpr const char* kApexStatusReady = "ready";
 
+static constexpr const char* kVmPayloadSignaturePartition =
+    "/dev/block/by-name/signature";
+
 // Banned APEX names
 static const std::unordered_set<std::string> kBannedApexName = {
     kApexSharedLibsSubDir,  // To avoid conflicts with predefined
