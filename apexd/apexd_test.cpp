@@ -1308,6 +1308,26 @@ TEST_F(ApexdMountTest, OnStartDataHasHigherVersion) {
                                    "/apex/com.android.apex.test_package_2@1"));
 }
 
+TEST_F(ApexdMountTest, OnStartDataHasWrongSHA) {
+  MockCheckpointInterface checkpoint_interface;
+  // Need to call InitializeVold before calling OnStart
+  InitializeVold(&checkpoint_interface);
+
+  AddPreInstalledApex("com.android.apex.cts.shim.apex");
+  AddDataApex("com.android.apex.cts.shim.v2_wrong_sha.apex");
+
+  ASSERT_RESULT_OK(
+      ApexFileRepository::GetInstance().AddPreInstalledApex({GetBuiltInDir()}));
+
+  OnStart();
+
+  // Check system shim apex is activated instead of the data one.
+  auto apex_mounts = GetApexMounts();
+  ASSERT_THAT(apex_mounts,
+              UnorderedElementsAre("/apex/com.android.apex.cts.shim",
+                                   "/apex/com.android.apex.cts.shim@1"));
+}
+
 TEST_F(ApexdMountTest, OnStartDataHasSameVersion) {
   MockCheckpointInterface checkpoint_interface;
   // Need to call InitializeVold before calling OnStart
