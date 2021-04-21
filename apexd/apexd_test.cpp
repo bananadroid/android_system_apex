@@ -312,6 +312,28 @@ TEST_F(ApexdUnitTest, ProcessCompressedApexCanBeCalledMultipleTimes) {
   ASSERT_EQ(last_write_time_1, last_write_time_2);
 }
 
+// Test that we check for hardlink before skipping decompression
+TEST_F(ApexdUnitTest, ProcessCompressedApexHardlinkMissing) {
+  auto compressed_apex = ApexFile::Open(
+      AddPreInstalledApex("com.android.apex.compressed.v1.capex"));
+
+  std::vector<ApexFileRef> compressed_apex_list;
+  compressed_apex_list.emplace_back(std::cref(*compressed_apex));
+  auto return_value = ProcessCompressedApex(compressed_apex_list);
+  ASSERT_EQ(return_value.size(), 1u);
+
+  // Ensure we can decompress again if /data/apex/active file is deleted
+  auto decompressed_hardlink_path =
+      StringPrintf("%s/com.android.apex.compressed@1%s", GetDataDir().c_str(),
+                   kDecompressedApexPackageSuffix);
+  ASSERT_TRUE(*PathExists(decompressed_hardlink_path));
+  fs::remove(decompressed_hardlink_path);
+  ASSERT_FALSE(*PathExists(decompressed_hardlink_path));
+  // Now try to decompress the same capex again. It should not fail.
+  return_value = ProcessCompressedApex(compressed_apex_list);
+  ASSERT_EQ(return_value.size(), 1u);
+}
+
 TEST_F(ApexdUnitTest, DecompressedApexCleanupDeleteIfActiveFileMissing) {
   // Create decompressed apex in decompression_dir
   fs::copy(GetTestFile("com.android.apex.compressed.v1_original.apex"),

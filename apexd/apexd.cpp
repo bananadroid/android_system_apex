@@ -2463,8 +2463,15 @@ std::vector<ApexFile> ProcessCompressedApex(
 
     // Decompress only if path doesn't exist. Otherwise reuse existing
     // decompressed APEX
-    auto path_exists = PathExists(dest_path_decompressed);
-    if (!path_exists.ok() || !*path_exists) {
+    auto decompressed_path_exists = PathExists(dest_path_decompressed);
+    // TODO(b/185886528): Stop hardlinking to /data/apex/active
+    auto hardlink_path_exists = PathExists(dest_path_active);
+    if (!decompressed_path_exists.ok() || !*decompressed_path_exists ||
+        !hardlink_path_exists.ok() || !*hardlink_path_exists) {
+      // Clean up before attempting to decompress
+      RemoveFileIfExists(dest_path_decompressed);
+      RemoveFileIfExists(dest_path_active);
+
       auto result = apex_file.Decompress(dest_path_decompressed);
       if (!result.ok()) {
         LOG(ERROR) << "Failed to decompress : " << apex_file.GetPath().c_str()
@@ -2486,6 +2493,8 @@ std::vector<ApexFile> ProcessCompressedApex(
                    << apex_file.GetPath();
         continue;
       }
+    } else {
+      LOG(INFO) << "Skipping decompression for " << apex_file.GetPath();
     }
 
     // Post decompression verification
