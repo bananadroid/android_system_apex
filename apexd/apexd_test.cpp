@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -23,6 +24,7 @@
 #include <android-base/stringprintf.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+#include <microdroid/signature.h>
 
 #include "apex_database.h"
 #include "apex_file_repository.h"
@@ -85,9 +87,15 @@ class ApexdUnitTest : public ::testing::Test {
     decompression_dir_ = StringPrintf("%s/decompressed-apex", td_.path);
     ota_reserved_dir_ = StringPrintf("%s/ota-reserved", td_.path);
     hash_tree_dir_ = StringPrintf("%s/apex-hash-tree", td_.path);
-    config_ = {kTestApexdStatusSysprop,   {built_in_dir_},
-               data_dir_.c_str(),         decompression_dir_.c_str(),
-               ota_reserved_dir_.c_str(), hash_tree_dir_.c_str()};
+    vm_payload_signature_path_ =
+        StringPrintf("%s/vm-payload-1", td_.path);  // should end with 1
+    config_ = {kTestApexdStatusSysprop,
+               {built_in_dir_},
+               data_dir_.c_str(),
+               decompression_dir_.c_str(),
+               ota_reserved_dir_.c_str(),
+               hash_tree_dir_.c_str(),
+               vm_payload_signature_path_.c_str()};
   }
 
   const std::string& GetBuiltInDir() { return built_in_dir_; }
@@ -103,6 +111,28 @@ class ApexdUnitTest : public ::testing::Test {
   std::string AddDataApex(const std::string& apex_name) {
     fs::copy(GetTestFile(apex_name), data_dir_);
     return StringPrintf("%s/%s", data_dir_.c_str(), apex_name.c_str());
+  }
+
+  std::string AddBlockApex(const std::string& apex_name,
+                           std::optional<std::string> pubkey = std::nullopt) {
+    auto signature = android::microdroid::ReadMicrodroidSignature(
+        vm_payload_signature_path_);
+
+    static constexpr const int kFirstApexPartition = 2;
+    auto partition_num = kFirstApexPartition + signature->apexes_size();
+    auto apex_path = StringPrintf("%s/vm-payload-%d", td_.path, partition_num);
+    fs::copy(GetTestFile(apex_name), apex_path);
+
+    auto apex = signature->add_apexes();
+    apex->set_name("apex" + std::to_string(partition_num));
+    apex->set_size(*GetFileSize(apex_path));
+    if (pubkey.has_value()) {
+      apex->set_publickey(*pubkey);
+    }
+
+    std::ofstream out(vm_payload_signature_path_);
+    WriteMicrodroidSignature(*signature, out);
+    return apex_path;
   }
 
   // Copies the compressed apex to |built_in_dir| and decompresses it to
@@ -125,6 +155,10 @@ class ApexdUnitTest : public ::testing::Test {
     ASSERT_EQ(mkdir(decompression_dir_.c_str(), 0755), 0);
     ASSERT_EQ(mkdir(ota_reserved_dir_.c_str(), 0755), 0);
     ASSERT_EQ(mkdir(hash_tree_dir_.c_str(), 0755), 0);
+
+    android::microdroid::MicrodroidSignature signature;
+    std::ofstream out(vm_payload_signature_path_);
+    WriteMicrodroidSignature(signature, out);
   }
 
  private:
@@ -134,6 +168,7 @@ class ApexdUnitTest : public ::testing::Test {
   std::string decompression_dir_;
   std::string ota_reserved_dir_;
   std::string hash_tree_dir_;
+  std::string vm_payload_signature_path_;
   ApexdConfig config_;
 };
 
@@ -1848,6 +1883,44 @@ TEST_F(ApexdMountTest, OnStartInVmModeFailsWithCapex) {
   InitializeVold(&checkpoint_interface);
 
   AddPreInstalledApex("com.android.apex.compressed.v2.capex");
+
+  ASSERT_EQ(1, OnStartInVmMode());
+}
+
+TEST_F(ApexdMountTest, OnStartInVmModeActivatesBlockDevicesAsWell) {
+  MockCheckpointInterface checkpoint_interface;
+  // Need to call InitializeVold before calling OnStart
+  InitializeVold(&checkpoint_interface);
+
+  AddBlockApex("apex.apexd_test.apex");
+
+  ASSERT_EQ(0, OnStartInVmMode());
+
+  auto apex_mounts = GetApexMounts();
+  ASSERT_THAT(apex_mounts,
+              UnorderedElementsAre("/apex/com.android.apex.test_package",
+                                   "/apex/com.android.apex.test_package@1",
+                                   // Emits apex-info-list as well
+                                   "/apex/apex-info-list.xml"));
+}
+
+TEST_F(ApexdMountTest, OnStartInVmModeFailsWithDuplicateNames) {
+  MockCheckpointInterface checkpoint_interface;
+  // Need to call InitializeVold before calling OnStart
+  InitializeVold(&checkpoint_interface);
+
+  AddPreInstalledApex("apex.apexd_test.apex");
+  AddBlockApex("apex.apexd_test_v2.apex");
+
+  ASSERT_EQ(1, OnStartInVmMode());
+}
+
+TEST_F(ApexdMountTest, OnStartInVmModeFailsWithWrongPubkey) {
+  MockCheckpointInterface checkpoint_interface;
+  // Need to call InitializeVold before calling OnStart
+  InitializeVold(&checkpoint_interface);
+
+  AddBlockApex("apex.apexd_test.apex", "wrong pubkey");
 
   ASSERT_EQ(1, OnStartInVmMode());
 }
