@@ -2338,6 +2338,7 @@ void Initialize(CheckpointInterface* checkpoint_service) {
     return;
   }
   gMountedApexes.PopulateFromMounts(gConfig->active_apex_data_dir,
+                                    gConfig->decompression_dir,
                                     gConfig->apex_hash_tree_dir);
 }
 
@@ -2852,6 +2853,7 @@ void BootCompletedCleanup() {
 
 int UnmountAll() {
   gMountedApexes.PopulateFromMounts(gConfig->active_apex_data_dir,
+                                    gConfig->decompression_dir,
                                     gConfig->apex_hash_tree_dir);
   int ret = 0;
   gMountedApexes.ForallMountedApexes([&](const std::string& /*package*/,
