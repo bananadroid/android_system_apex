@@ -215,9 +215,19 @@ Result<void> ApexFileRepository::AddDataApex(const std::string& data_dir) {
       ApexFileRef pre_installed_apex = GetPreInstalledApex(name);
       if (!pre_installed_apex.get().IsCompressed()) {
         LOG(ERROR) << "Skipping " << file
-                   << " : Decompressed APEX on data is missing its compressed "
-                      "pre-installed APEX"
-                   << " counterpart on system";
+                   << " : Decompressed APEX on data is missing its compressed"
+                   << " pre-installed APEX counterpart on system";
+        continue;
+      }
+      // Verify that apex_file has same version as pre_installed_apex, otherwise
+      // it's an invalid decompressed apex
+      // TODO(b/185708645): Comparing version to determine equivalence is
+      // brittle.
+      if (apex_file->GetManifest().version() !=
+          pre_installed_apex.get().GetManifest().version()) {
+        LOG(ERROR) << "Skipping " << file
+                   << " : Decompressed APEX has different version than"
+                   << " pre-installed APEX";
         continue;
       }
     }

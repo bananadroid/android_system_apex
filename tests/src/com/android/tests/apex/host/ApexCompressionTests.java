@@ -293,6 +293,7 @@ public class ApexCompressionTests extends BaseHostJUnit4Test {
     }
 
     @Test
+    @LargeTest
     public void testFailsToActivateApexOnDataFallbacksToPreInstalled() throws Exception {
         // Push a data apex that will fail to activate
         final File file =
@@ -322,6 +323,9 @@ public class ApexCompressionTests extends BaseHostJUnit4Test {
     @LargeTest
     public void testCapexToApexSwitch() throws Exception {
         pushTestApex(COMPRESSED_APEX_PACKAGE_NAME + ".v1.capex");
+        assertThat(getFilesInDir(DECOMPRESSED_DIR_PATH))
+            .contains(COMPRESSED_APEX_PACKAGE_NAME + "@1" + DECOMPRESSED_APEX_SUFFIX);
+
         // Now replace the CAPEX with an uncompressed APEX
         getDevice().remountSystemWritable();
         getDevice().executeShellCommand("rm -rf /system/apex/"
@@ -335,6 +339,19 @@ public class ApexCompressionTests extends BaseHostJUnit4Test {
                         "Can't find " + COMPRESSED_APEX_PACKAGE_NAME));
         assertThat(activeApex.sourceDir).startsWith("/system");
         // Ensure previous decompressed APEX has been cleaned up
-        assertThat(getFilesInDir(DECOMPRESSED_DIR_PATH)).isEmpty();
+        assertThat(getFilesInDir(DECOMPRESSED_DIR_PATH))
+            .doesNotContain(COMPRESSED_APEX_PACKAGE_NAME + "@1" + DECOMPRESSED_APEX_SUFFIX);
+    }
+
+    @Test
+    @LargeTest
+    public void testDecompressedApexVersionAlwaysHasSameVersionAsCapex() throws Exception {
+        pushTestApex(COMPRESSED_APEX_PACKAGE_NAME + ".v2.capex");
+        // Now replace /system APEX with v1
+        getDevice().remountSystemWritable();
+        getDevice().executeShellCommand("rm -rf /system/apex/"
+                + COMPRESSED_APEX_PACKAGE_NAME + "*apex");
+        pushTestApex(COMPRESSED_APEX_PACKAGE_NAME + ".v1.capex");
+        runPhase("testDecompressedApexVersionDifferentThanCapex");
     }
 }
