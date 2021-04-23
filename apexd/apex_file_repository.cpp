@@ -53,6 +53,7 @@ Result<void> ApexFileRepository::ScanBuiltInDir(const std::string& dir) {
 
   // TODO(b/179248390): scan parallelly if possible
   for (const auto& file : *all_apex_files) {
+    LOG(INFO) << "Found pre-installed APEX " << file;
     Result<ApexFile> apex_file = ApexFile::Open(file);
     if (!apex_file.ok()) {
       return Error() << "Failed to open " << file << " : " << apex_file.error();
@@ -118,6 +119,7 @@ Result<void> ApexFileRepository::AddDataApex(const std::string& data_dir) {
 
   // TODO(b/179248390): scan parallelly if possible
   for (const auto& file : *all_apex_files) {
+    LOG(INFO) << "Found updated apex " << file;
     Result<ApexFile> apex_file = ApexFile::Open(file);
     if (!apex_file.ok()) {
       LOG(ERROR) << "Failed to open " << file << " : " << apex_file.error();
