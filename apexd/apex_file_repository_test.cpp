@@ -399,6 +399,25 @@ TEST(ApexFileRepositoryTest, AddDataApexPrioritizeNonDecompressedApex) {
               UnorderedElementsAre(ApexFileEq(ByRef(*normal_apex))));
 }
 
+TEST(ApexFileRepositoryTest,
+     AddDataApexIgnoreDecompressedApexIfSystemUncompressed) {
+  // Prepare test data. Initially put v1 capex in system
+  TemporaryDir fake_built_in_dir, built_in_dir, data_dir, decompressed_dir;
+  PrepareCompressedApex("com.android.apex.compressed.v1.capex",
+                        fake_built_in_dir.path, data_dir.path,
+                        decompressed_dir.path);
+  // Then copy uncompressed apex in built_in_dir
+  fs::copy(GetTestFile("com.android.apex.compressed.v1_original.apex"),
+           built_in_dir.path);
+
+  ApexFileRepository instance(decompressed_dir.path);
+  ASSERT_TRUE(IsOk(instance.AddPreInstalledApex({built_in_dir.path})));
+  ASSERT_TRUE(IsOk(instance.AddDataApex(data_dir.path)));
+
+  auto data_apexs = instance.GetDataApexFiles();
+  ASSERT_EQ(data_apexs.size(), 0u);
+}
+
 TEST(ApexFileRepositoryTest, AddDataApexIgnoreWrongPublicKey) {
   // Prepare test data.
   TemporaryDir built_in_dir, data_dir;
