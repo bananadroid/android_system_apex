@@ -245,9 +245,10 @@ public class ApexCompressionTests extends BaseHostJUnit4Test {
         runPhase("testUnusedDecompressedApexIsCleanedUp_HigherVersion");
         getDevice().reboot();
 
-        // Verify that DECOMPRESSED_DIR_PATH is now empty
+        // Verify that DECOMPRESSED_DIR_PATH does not contain the decompressed APEX
         files = getFilesInDir(DECOMPRESSED_DIR_PATH);
-        assertThat(files).isEmpty();
+        assertThat(files).doesNotContain(
+                COMPRESSED_APEX_PACKAGE_NAME + "@1" + DECOMPRESSED_APEX_SUFFIX);
     }
 
     @Test
@@ -263,9 +264,10 @@ public class ApexCompressionTests extends BaseHostJUnit4Test {
         runPhase("testUnusedDecompressedApexIsCleanedUp_SameVersion");
         getDevice().reboot();
 
-        // Verify that DECOMPRESSED_DIR_PATH is now empty
+        // Verify that DECOMPRESSED_DIR_PATH does not contain the decompressed APEX
         files = getFilesInDir(DECOMPRESSED_DIR_PATH);
-        assertThat(files).isEmpty();
+        assertThat(files).doesNotContain(
+                COMPRESSED_APEX_PACKAGE_NAME + "@1" + DECOMPRESSED_APEX_SUFFIX);
     }
 
     @Test
