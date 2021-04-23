@@ -139,6 +139,18 @@ Result<void> ApexFileRepository::AddDataApex(const std::string& data_dir) {
       continue;
     }
 
+    if (IsDecompressedApex(*apex_file)) {
+      // Decompressed apex is invalid if apex on system in not compressed
+      ApexFileRef pre_installed_apex = GetPreInstalledApex(name);
+      if (!pre_installed_apex.get().IsCompressed()) {
+        LOG(ERROR) << "Skipping " << file
+                   << " : Decompressed APEX on data is missing its compressed "
+                      "pre-installed APEX"
+                   << " counterpart on system";
+        continue;
+      }
+    }
+
     auto it = data_store_.find(name);
     if (it == data_store_.end()) {
       data_store_.emplace(name, std::move(*apex_file));
