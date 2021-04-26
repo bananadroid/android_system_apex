@@ -350,4 +350,21 @@ public class ApexCompressionTests extends BaseHostJUnit4Test {
         pushTestApex(COMPRESSED_APEX_PACKAGE_NAME + ".v1.capex");
         runPhase("testDecompressedApexVersionAlwaysHasSameVersionAsCapex");
     }
+
+    @Test
+    @LargeTest
+    public void testCompressedApexCanBeRolledBack() throws Exception {
+        pushTestApex(COMPRESSED_APEX_PACKAGE_NAME + ".v1.capex");
+
+        // Now install update with rollback
+        runPhase("testCompressedApexCanBeRolledBack_Commit");
+        getDevice().reboot();
+
+        // Rollback the apex
+        runPhase("testCompressedApexCanBeRolledBack_Rollback");
+        getDevice().reboot();
+
+        runPhase("testCompressedApexCanBeRolledBack_Verify");
+    }
 }
+
