@@ -2348,7 +2348,8 @@ void Initialize(CheckpointInterface* checkpoint_service) {
 //  ApexFileRepository can act as cache and re-scanning is not expensive
 void InitializeDataApex() {
   ApexFileRepository& instance = ApexFileRepository::GetInstance();
-  Result<void> status = instance.AddDataApex(kActiveApexPackagesDataDir);
+  Result<void> status =
+      instance.AddDataApex(kActiveApexPackagesDataDir, kApexDecompressedDir);
   if (!status.ok()) {
     LOG(ERROR) << "Failed to collect data APEX files : " << status.error();
     return;
@@ -2438,9 +2439,8 @@ std::vector<ApexFileRef> SelectApexForActivation(
 }
 
 /**
- * For each compressed APEX, decompress it to kApexDecompressedDir. If we
- * are decompressing during boot then hard link it to |active_apex_data_dir|
- * and return the hardlinked apex, other return the decompressed APEX.
+ * For each compressed APEX, decompress it to kApexDecompressedDir
+ * and return the decompressed APEX.
  *
  * Returns list of decompressed APEX.
  */
@@ -2472,29 +2472,13 @@ std::vector<ApexFile> ProcessCompressedApex(
     const auto dest_path_decompressed = StringPrintf(
         "%s/%s%s", gConfig->decompression_dir,
         GetPackageId(apex_file.GetManifest()).c_str(), suffix_to_use);
-    // If we are decompressing during boot, then we hardlink it to
-    // active apex directory and return that ApexFile
-    const auto return_apex_file_path =
-        is_ota_chroot
-            ? dest_path_decompressed
-            : StringPrintf("%s/%s%s", gConfig->active_apex_data_dir,
-                           GetPackageId(apex_file.GetManifest()).c_str(),
-                           suffix_to_use);
 
     cleanup.push_back(dest_path_decompressed);
-    cleanup.push_back(return_apex_file_path);
 
     // Decompress only if path doesn't exist. Otherwise reuse existing
     // decompressed APEX
     auto decompressed_path_exists = PathExists(dest_path_decompressed);
-    // TODO(b/185886528): Stop hardlinking to /data/apex/active
-    auto return_file_exists = PathExists(return_apex_file_path);
-    if (!decompressed_path_exists.ok() || !*decompressed_path_exists ||
-        !return_file_exists.ok() || !*return_file_exists) {
-      // Clean up before attempting to decompress
-      RemoveFileIfExists(dest_path_decompressed);
-      RemoveFileIfExists(return_apex_file_path);
-
+    if (!decompressed_path_exists.ok() || !*decompressed_path_exists) {
       // Try to avoid decompression if there is an ota_apex ready to be reused
       // and we are not booting from chroot
       auto ota_apex_path = StringPrintf(
@@ -2524,35 +2508,22 @@ std::vector<ApexFile> ProcessCompressedApex(
         LOG(ERROR) << restore.error();
         continue;
       }
-
-      // TODO(b/185886528): Stop hardlinking to /data/apex/active
-      if (!is_ota_chroot) {
-        // Hardlink to kActiveApexPackagesDataDir so that they get activated on
-        // reboot
-        if (link(dest_path_decompressed.c_str(),
-                 return_apex_file_path.c_str()) != 0) {
-          LOG(ERROR) << "Failed to link decompressed APEX "
-                     << dest_path_decompressed << " to "
-                     << return_apex_file_path;
-          continue;
-        }
-      }
     } else {
       LOG(INFO) << "Skipping decompression for " << apex_file.GetPath();
     }
 
     // Post decompression validation
-    auto return_apex = ApexFile::Open(return_apex_file_path);
+    auto return_apex = ApexFile::Open(dest_path_decompressed);
     if (!return_apex.ok()) {
       LOG(ERROR) << "Failed to open decompressed APEX : "
-                 << return_apex_file_path << " " << return_apex.error();
+                 << dest_path_decompressed << " " << return_apex.error();
       continue;
     }
     auto validation_result =
         ValidateDecompressedApex(apex_file, std::cref(*return_apex));
     if (!validation_result.ok()) {
       LOG(ERROR) << "Validation failed for decompressed APEX "
-                 << return_apex_file_path << " " << validation_result.error();
+                 << dest_path_decompressed << " " << validation_result.error();
       continue;
     }
 
@@ -2613,7 +2584,7 @@ void OnStart() {
   // them to /data/apex/active first.
   ScanStagedSessionsDirAndStage();
   if (auto status = ApexFileRepository::GetInstance().AddDataApex(
-          gConfig->active_apex_data_dir);
+          gConfig->active_apex_data_dir, gConfig->decompression_dir);
       !status.ok()) {
     LOG(ERROR) << "Failed to collect data APEX files : " << status.error();
   }
@@ -2823,18 +2794,31 @@ Result<void> MarkStagedSessionSuccessful(const int session_id) {
   }
 }
 
-namespace {
-
 // Removes APEXes on /data that have not been activated
 void RemoveInactiveDataApex() {
-  auto data_apexes =
-      FindFilesBySuffix(kActiveApexPackagesDataDir, {kApexPackageSuffix});
-  if (!data_apexes.ok()) {
-    LOG(ERROR) << "Failed to scan " << kActiveApexPackagesDataDir << " : "
-               << data_apexes.error();
-    return;
+  std::vector<std::string> all_apex_files;
+  Result<std::vector<std::string>> active_apex =
+      FindFilesBySuffix(gConfig->active_apex_data_dir, {kApexPackageSuffix});
+  if (!active_apex.ok()) {
+    LOG(ERROR) << "Failed to scan " << gConfig->active_apex_data_dir << " : "
+               << active_apex.error();
+  } else {
+    all_apex_files.insert(all_apex_files.end(),
+                          std::make_move_iterator(active_apex->begin()),
+                          std::make_move_iterator(active_apex->end()));
   }
-  for (const auto& path : *data_apexes) {
+  Result<std::vector<std::string>> decompressed_apex = FindFilesBySuffix(
+      gConfig->decompression_dir, {kDecompressedApexPackageSuffix});
+  if (!decompressed_apex.ok()) {
+    LOG(ERROR) << "Failed to scan " << gConfig->decompression_dir << " : "
+               << decompressed_apex.error();
+  } else {
+    all_apex_files.insert(all_apex_files.end(),
+                          std::make_move_iterator(decompressed_apex->begin()),
+                          std::make_move_iterator(decompressed_apex->end()));
+  }
+
+  for (const auto& path : all_apex_files) {
     if (!apexd_private::IsMounted(path)) {
       LOG(INFO) << "Removing inactive data APEX " << path;
       if (unlink(path.c_str()) != 0) {
@@ -2844,45 +2828,8 @@ void RemoveInactiveDataApex() {
   }
 }
 
-}  // namespace
-
-// Decompressed APEX in |decompression_dir| that are no longer linked to
-// |apex_active_dir| should be removed
-void RemoveUnlinkedDecompressedApex(
-    const std::string& decompression_dir = kApexDecompressedDir,
-    const std::string& apex_active_dir = kActiveApexPackagesDataDir) {
-  auto decompressed_files = ReadDir(decompression_dir, [](auto _) {
-    (void)_;
-    return true;
-  });
-  if (!decompressed_files.ok()) {
-    return;
-  }
-
-  namespace fs = std::filesystem;
-  for (const std::string& decompressed_file : *decompressed_files) {
-    // Check if this file is still hard linked to one of the files in
-    // apex_active_dir
-    const std::string filename = fs::path(decompressed_file).filename();
-    const std::string active_copy_path =
-        StringPrintf("%s/%s", apex_active_dir.c_str(), filename.c_str());
-    std::error_code ec;
-    const bool hard_link_exists =
-        fs::equivalent(decompressed_file, active_copy_path, ec);
-    if (ec || !hard_link_exists) {
-      LOG(INFO) << "Cleaning up unused decompressed APEX file: "
-                << decompressed_file;
-      if (unlink(decompressed_file.c_str()) != 0) {
-        PLOG(ERROR) << "Failed to delete unused decompressed APEX file: "
-                    << decompressed_file;
-      }
-    }
-  }
-}
-
 void BootCompletedCleanup() {
   RemoveInactiveDataApex();
-  RemoveUnlinkedDecompressedApex();
   ApexSession::DeleteFinalizedSessions();
 }
 
@@ -3118,7 +3065,8 @@ int OnOtaChrootBootstrap() {
                << Join(gConfig->apex_built_in_dirs, ',');
     return 1;
   }
-  if (auto status = instance.AddDataApex(gConfig->active_apex_data_dir);
+  if (auto status = instance.AddDataApex(gConfig->active_apex_data_dir,
+                                         gConfig->decompression_dir);
       !status.ok()) {
     LOG(ERROR) << "Failed to scan upgraded apexes from "
                << gConfig->active_apex_data_dir;
