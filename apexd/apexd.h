@@ -189,8 +189,10 @@ int OnStartInVmMode();
 
 // Activates apexes in otapreot_chroot environment.
 // TODO(b/172911822): support compressed apexes.
-// TODO(b/181182967): probably also need to support flattened apexes.
 int OnOtaChrootBootstrap();
+
+// Activates flattened apexes in otapreopt_chroot environment.
+int OnOtaChrootBootstrapFlattenedApex();
 
 android::apex::MountedApexDatabase& GetApexDatabaseForTesting();
 
