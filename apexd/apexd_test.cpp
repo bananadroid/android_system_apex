@@ -31,6 +31,7 @@
 #include "apexd_test_utils.h"
 #include "apexd_utils.h"
 
+#include "apex_manifest.pb.h"
 #include "com_android_apex.h"
 #include "gmock/gmock-matchers.h"
 
@@ -47,6 +48,7 @@ using android::base::GetProperty;
 using android::base::make_scope_guard;
 using android::base::Result;
 using android::base::StringPrintf;
+using android::base::WriteStringToFile;
 using com::android::apex::testing::ApexInfoXmlEq;
 using ::testing::ByRef;
 using ::testing::HasSubstr;
@@ -1856,6 +1858,62 @@ TEST_F(ApexdMountTest,
       /* modulePath= */ apex_path_2, /* preinstalledModulePath= */ apex_path_2,
       /* versionCode= */ 1, /* versionName= */ "1", /* isFactory= */ true,
       /* isActive= */ true);
+
+  ASSERT_THAT(info_list->getApexInfo(),
+              UnorderedElementsAre(ApexInfoXmlEq(apex_info_xml_1),
+                                   ApexInfoXmlEq(apex_info_xml_2)));
+}
+
+TEST_F(ApexdMountTest, OnOtaChrootBootstrapFlattenedApex) {
+  std::string apex_dir_1 = GetBuiltInDir() + "/com.android.apex.test_package";
+  std::string apex_dir_2 = GetBuiltInDir() + "/com.android.apex.test_package_2";
+
+  ASSERT_EQ(mkdir(apex_dir_1.c_str(), 0755), 0);
+  ASSERT_EQ(mkdir(apex_dir_2.c_str(), 0755), 0);
+
+  auto write_manifest_fn = [&](const std::string& apex_dir,
+                               const std::string& module_name, int version) {
+    using ::apex::proto::ApexManifest;
+
+    ApexManifest manifest;
+    manifest.set_name(module_name);
+    manifest.set_version(version);
+    manifest.set_versionname(std::to_string(version));
+
+    std::string out;
+    manifest.SerializeToString(&out);
+    ASSERT_TRUE(WriteStringToFile(out, apex_dir + "/apex_manifest.pb"));
+  };
+
+  write_manifest_fn(apex_dir_1, "com.android.apex.test_package", 2);
+  write_manifest_fn(apex_dir_2, "com.android.apex.test_package_2", 1);
+
+  ASSERT_EQ(OnOtaChrootBootstrapFlattenedApex(), 0);
+
+  auto apex_mounts = GetApexMounts();
+  ASSERT_THAT(apex_mounts,
+              UnorderedElementsAre("/apex/com.android.apex.test_package",
+                                   "/apex/com.android.apex.test_package_2"));
+
+  ASSERT_EQ(access("/apex/apex-info-list.xml", F_OK), 0);
+  ASSERT_EQ(GetSelinuxContext("/apex/apex-info-list.xml"),
+            "u:object_r:apex_info_file:s0");
+
+  auto info_list =
+      com::android::apex::readApexInfoList("/apex/apex-info-list.xml");
+  ASSERT_TRUE(info_list.has_value());
+  auto apex_info_xml_1 = com::android::apex::ApexInfo(
+      /* moduleName= */ "com.android.apex.test_package",
+      /* modulePath= */ apex_dir_1,
+      /* preinstalledModulePath= */ apex_dir_1,
+      /* versionCode= */ 2, /* versionName= */ "2",
+      /* isFactory= */ true, /* isActive= */ true);
+  auto apex_info_xml_2 = com::android::apex::ApexInfo(
+      /* moduleName= */ "com.android.apex.test_package_2",
+      /* modulePath= */ apex_dir_2,
+      /* preinstalledModulePath= */ apex_dir_2,
+      /* versionCode= */ 1, /* versionName= */ "1",
+      /* isFactory= */ true, /* isActive= */ true);
 
   ASSERT_THAT(info_list->getApexInfo(),
               UnorderedElementsAre(ApexInfoXmlEq(apex_info_xml_1),
