@@ -76,6 +76,7 @@
 #include <mutex>
 #include <optional>
 #include <queue>
+#include <sstream>
 #include <string>
 #include <thread>
 #include <unordered_map>
@@ -3207,6 +3208,90 @@ int OnOtaChrootBootstrap() {
     return 1;
   }
 
+  fd.reset();
+
+  if (auto status = RestoreconPath(file_name); !status.ok()) {
+    LOG(ERROR) << "Failed to restorecon " << file_name << " : "
+               << status.error();
+    return 1;
+  }
+
+  return 0;
+}
+
+int OnOtaChrootBootstrapFlattenedApex() {
+  LOG(INFO) << "OnOtaChrootBootstrapFlattenedApex";
+
+  std::vector<com::android::apex::ApexInfo> apex_infos;
+
+  for (const std::string& dir : gConfig->apex_built_in_dirs) {
+    LOG(INFO) << "Scanning " << dir;
+    auto dir_content = ReadDir(dir, [](const auto& entry) {
+      std::error_code ec;
+      return entry.is_directory(ec);
+    });
+
+    if (!dir_content.ok()) {
+      LOG(ERROR) << "Failed to scan " << dir << " : " << dir_content.error();
+      continue;
+    }
+
+    // Sort to make sure that /apex/apex-info-list.xml generation doesn't depend
+    // on the unstable directory scan.
+    std::vector<std::string> entries = std::move(*dir_content);
+    std::sort(entries.begin(), entries.end());
+
+    for (const std::string& apex_dir : entries) {
+      std::string manifest_file = apex_dir + "/" + kManifestFilenamePb;
+      if (access(manifest_file.c_str(), F_OK) != 0) {
+        PLOG(ERROR) << "Failed to access " << manifest_file;
+        continue;
+      }
+
+      auto manifest = ReadManifest(manifest_file);
+      if (!manifest.ok()) {
+        LOG(ERROR) << "Failed to read apex manifest from " << manifest_file
+                   << " : " << manifest.error();
+        continue;
+      }
+
+      std::string mount_point = std::string(kApexRoot) + "/" + manifest->name();
+      if (mkdir(mount_point.c_str(), 0755) != 0) {
+        PLOG(ERROR) << "Failed to mkdir " << mount_point;
+        continue;
+      }
+
+      LOG(INFO) << "Bind mounting " << apex_dir << " onto " << mount_point;
+      if (mount(apex_dir.c_str(), mount_point.c_str(), nullptr, MS_BIND,
+                nullptr) != 0) {
+        PLOG(ERROR) << "Failed to bind mount " << apex_dir << " to "
+                    << mount_point;
+        continue;
+      }
+
+      apex_infos.emplace_back(manifest->name(), /* modulePath= */ apex_dir,
+                              /* preinstalledModulePath= */ apex_dir,
+                              /* versionCode= */ manifest->version(),
+                              /* versionName= */ manifest->versionname(),
+                              /* isFactory= */ true, /* isActive= */ true);
+    }
+  }
+
+  std::string file_name = StringPrintf("%s/%s", kApexRoot, kApexInfoList);
+  unique_fd fd(TEMP_FAILURE_RETRY(
+      open(file_name.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0644)));
+  if (fd.get() == -1) {
+    PLOG(ERROR) << "Can't open " << file_name;
+    return 1;
+  }
+
+  std::ostringstream xml;
+  com::android::apex::ApexInfoList apex_info_list(apex_infos);
+  com::android::apex::write(xml, apex_info_list);
+  if (!android::base::WriteStringToFd(xml.str(), fd)) {
+    PLOG(ERROR) << "Can't write to " << file_name;
+    return 1;
+  }
   fd.reset();
 
   if (auto status = RestoreconPath(file_name); !status.ok()) {
