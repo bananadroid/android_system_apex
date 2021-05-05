@@ -1020,7 +1020,7 @@ void CreateAndRegisterService() {
   sp<ProcessState> ps(ProcessState::self());
 
   // Create binder service and register with LazyServiceRegistrar
-  sp<ApexService> apex_service = new ApexService();
+  sp<ApexService> apex_service = sp<ApexService>::make();
   auto lazy_registrar = LazyServiceRegistrar::getInstance();
   lazy_registrar.forcePersist(true);
   lazy_registrar.registerService(apex_service, kApexServiceName);
