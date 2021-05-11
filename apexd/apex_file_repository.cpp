@@ -243,6 +243,12 @@ Result<void> ApexFileRepository::AddDataApex(
                    << " pre-installed APEX";
         continue;
       }
+    } else if (android::base::EndsWith(apex_file->GetPath(),
+                                       kDecompressedApexPackageSuffix)) {
+      LOG(WARNING) << "Skipping " << file
+                   << " : Non-decompressed APEX should not have "
+                   << kDecompressedApexPackageSuffix << " suffix";
+      continue;
     }
 
     auto it = data_store_.find(name);
