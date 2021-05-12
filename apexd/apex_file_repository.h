@@ -17,6 +17,7 @@
 #pragma once
 
 #include <functional>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -125,6 +126,9 @@ class ApexFileRepository final {
   // expected to check if there is a data apex with the given name
   // using |HasDataVersion| function.
   ApexFileRef GetDataApex(const std::string& name) const;
+
+  // Returns an instance matching with |full_path|
+  std::optional<ApexFileRef> GetApexFile(const std::string& full_path) const;
 
   // Clears ApexFileRepostiry.
   // Only use in tests.
