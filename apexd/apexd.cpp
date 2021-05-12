@@ -1304,13 +1304,21 @@ Result<void> DeactivatePackage(const std::string& full_path) {
 
 std::vector<ApexFile> GetActivePackages() {
   std::vector<ApexFile> ret;
+  const auto& instance = ApexFileRepository::GetInstance();
   gMountedApexes.ForallMountedApexes(
       [&](const std::string&, const MountedApexData& data, bool latest) {
         if (!latest) {
           return;
         }
-
-        Result<ApexFile> apex_file = ApexFile::Open(data.full_path);
+        // A block apex requires its size to open it.
+        // Retrieves file_size from ApexFileRepository.
+        // TODO(b/187783952): we can remove this when the block device
+        // can be open without size.
+        std::optional<uint32_t> file_size = std::nullopt;
+        if (auto apex = instance.GetApexFile(data.full_path); apex) {
+          file_size = apex->get().GetFileSize();
+        }
+        Result<ApexFile> apex_file = ApexFile::Open(data.full_path, file_size);
         if (!apex_file.ok()) {
           return;
         }

@@ -375,5 +375,20 @@ ApexFileRef ApexFileRepository::GetPreInstalledApex(
   return std::cref(it->second);
 }
 
+std::optional<ApexFileRef> ApexFileRepository::GetApexFile(
+    const std::string& full_path) const {
+  for (const auto& [_, apex] : pre_installed_store_) {
+    if (apex.GetPath() == full_path) {
+      return std::cref(apex);
+    }
+  }
+  for (const auto& [_, apex] : data_store_) {
+    if (apex.GetPath() == full_path) {
+      return std::cref(apex);
+    }
+  }
+  return std::nullopt;
+}
+
 }  // namespace apex
 }  // namespace android
