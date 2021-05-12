@@ -44,6 +44,8 @@ using android::apex::testing::IsOk;
 using android::base::GetExecutableDirectory;
 using android::base::StringPrintf;
 using ::testing::ByRef;
+using ::testing::Eq;
+using ::testing::Optional;
 using ::testing::UnorderedElementsAre;
 
 static std::string GetTestDataDir() { return GetExecutableDirectory(); }
@@ -492,6 +494,38 @@ TEST(ApexFileRepositoryTest, GetPreInstalledApex) {
 
   auto ret = instance.GetPreInstalledApex("com.android.apex.test_package");
   ASSERT_THAT(ret, ApexFileEq(ByRef(*apex)));
+}
+
+TEST(ApexFileRepositoryTest, GetApexFileWithPath) {
+  // Prepare test data.
+  TemporaryDir built_in_dir;
+  fs::copy(GetTestFile("apex.apexd_test.apex"), built_in_dir.path);
+
+  ApexFileRepository instance;
+  ASSERT_TRUE(IsOk(instance.AddPreInstalledApex({built_in_dir.path})));
+
+  auto apex_path = StringPrintf("%s/apex.apexd_test.apex", built_in_dir.path);
+  auto apex = ApexFile::Open(apex_path);
+  ASSERT_RESULT_OK(apex);
+
+  auto ret = instance.GetApexFile(apex_path);
+  ASSERT_THAT(ret, Optional(ApexFileEq(ByRef(*apex))));
+}
+
+TEST(ApexFileRepositoryTest, GetApexFileReturnsNulloptWithUnknownPath) {
+  // Prepare test data.
+  TemporaryDir built_in_dir;
+  fs::copy(GetTestFile("apex.apexd_test.apex"), built_in_dir.path);
+
+  ApexFileRepository instance;
+  ASSERT_TRUE(IsOk(instance.AddPreInstalledApex({built_in_dir.path})));
+
+  auto apex_path = StringPrintf("%s/apex.apexd_test.apex", built_in_dir.path);
+  auto apex = ApexFile::Open(apex_path);
+  ASSERT_RESULT_OK(apex);
+
+  auto ret = instance.GetApexFile(apex_path + ".wrong");
+  ASSERT_THAT(ret, Eq(std::nullopt));
 }
 
 TEST(ApexFileRepositoryTest, GetPreInstalledApexNoSuchApexAborts) {
