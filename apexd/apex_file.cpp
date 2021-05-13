@@ -178,7 +178,7 @@ Result<ApexFile> ApexFile::Open(const std::string& path,
   }
 
   return ApexFile(realpath, image_offset, image_size, std::move(*manifest),
-                  pubkey, fs_type, is_compressed);
+                  pubkey, fs_type, is_compressed, size);
 }
 
 // AVB-related code.

@@ -56,6 +56,7 @@ class ApexFile {
   const std::string& GetPath() const { return apex_path_; }
   const std::optional<int32_t>& GetImageOffset() const { return image_offset_; }
   const std::optional<size_t>& GetImageSize() const { return image_size_; }
+  const std::optional<uint32_t>& GetFileSize() const { return file_size_; }
   const ::apex::proto::ApexManifest& GetManifest() const { return manifest_; }
   const std::string& GetBundledPublicKey() const { return apex_pubkey_; }
   const std::optional<std::string>& GetFsType() const { return fs_type_; }
@@ -69,14 +70,16 @@ class ApexFile {
            const std::optional<int32_t>& image_offset,
            const std::optional<size_t>& image_size,
            ::apex::proto::ApexManifest manifest, const std::string& apex_pubkey,
-           const std::optional<std::string>& fs_type, bool is_compressed)
+           const std::optional<std::string>& fs_type, bool is_compressed,
+           std::optional<size_t> file_size)
       : apex_path_(apex_path),
         image_offset_(image_offset),
         image_size_(image_size),
         manifest_(std::move(manifest)),
         apex_pubkey_(apex_pubkey),
         fs_type_(fs_type),
-        is_compressed_(is_compressed) {}
+        is_compressed_(is_compressed),
+        file_size_(file_size) {}
 
   std::string apex_path_;
   std::optional<int32_t> image_offset_;
@@ -85,6 +88,7 @@ class ApexFile {
   std::string apex_pubkey_;
   std::optional<std::string> fs_type_;
   bool is_compressed_;
+  std::optional<uint32_t> file_size_;
 };
 
 }  // namespace apex
