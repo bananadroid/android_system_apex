@@ -69,7 +69,7 @@ void SetConfig(const ApexdConfig& config);
 
 // Exposed only for testing.
 android::base::Result<void> Unmount(
-    const MountedApexDatabase::MountedApexData& data);
+    const MountedApexDatabase::MountedApexData& data, bool deferred);
 
 android::base::Result<void> ResumeRevertIfNeeded();
 
