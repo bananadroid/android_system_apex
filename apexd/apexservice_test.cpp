@@ -3102,6 +3102,7 @@ TEST_F(ApexServiceTestForCompressedApex, ReserveSpaceForCompressedApex) {
 
 int main(int argc, char** argv) {
   android::base::InitLogging(argv, &android::base::StderrLogger);
+  android::base::SetMinimumLogSeverity(android::base::VERBOSE);
   ::testing::InitGoogleTest(&argc, argv);
   ::testing::UnitTest::GetInstance()->listeners().Append(
       new android::apex::LogTestToLogcat());
