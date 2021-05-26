@@ -427,3 +427,35 @@ apex {
     test_only_force_compression: true,
     updatable: false,
 }
+
+apex {
+    name: "test.rebootless_apex_v1",
+    manifest: "manifest_rebootless.json",
+    file_contexts: ":apex.test-file_contexts",
+    key: "com.android.apex.test_package.key",
+    installable: false,
+    updatable: false,
+    // TODO(ioffe): we should have a separate field to hashtree presence.
+    min_sdk_version: "29",  // test requires hashtree to be present.
+}
+
+apex {
+    name: "test.rebootless_apex_v2",
+    manifest: "manifest_rebootless_v2.json",
+    file_contexts: ":apex.test-file_contexts",
+    key: "com.android.apex.test_package.key",
+    installable: false,
+    updatable: false,
+    // TODO(ioffe): we should have a separate field to hashtree presence.
+    min_sdk_version: "29",  // test requires hashtree to be present.
+}
+
+apex {
+    name: "test.rebootless_apex_v2_no_hashtree",
+    manifest: "manifest_rebootless_v2.json",
+    file_contexts: ":apex.test-file_contexts",
+    key: "com.android.apex.test_package.key",
+    installable: false,
+    updatable: false,
+    test_only_no_hashtree: true,
+}
