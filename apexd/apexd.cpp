@@ -987,6 +987,12 @@ Result<void> UnmountPackage(const ApexFile& apex, bool allow_latest,
     if (umount2(mount_point.c_str(), UMOUNT_NOFOLLOW) != 0) {
       return ErrnoError() << "Failed to unmount " << mount_point;
     }
+
+    if (!deferred) {
+      if (rmdir(mount_point.c_str()) != 0) {
+        PLOG(ERROR) << "Failed to rmdir " << mount_point;
+      }
+    }
   }
 
   // Clean up gMountedApexes now, even though we're not fully done.
@@ -3496,7 +3502,7 @@ Result<ApexFile> InstallPackage(const std::string& package_path) {
     return res.error();
   }
 
-  // 4. Now we can ulink old APEX if it's not pre-installed.
+  // 4. Now we can unlink old APEX if it's not pre-installed.
   if (!ApexFileRepository::GetInstance().IsPreInstalledApex(*cur_apex)) {
     if (unlink(cur_mounted_data->full_path.c_str()) != 0) {
       PLOG(ERROR) << "Failed to unlink " << cur_mounted_data->full_path;
