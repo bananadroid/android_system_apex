@@ -5,5 +5,6 @@
   "requireNativeLibs": [
     "libfoo",
     "libbar"
-  ]
+  ],
+  "provideSharedApexLibs": true
 }
