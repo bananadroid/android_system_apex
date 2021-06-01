@@ -1349,6 +1349,20 @@ std::vector<ApexFile> GetActivePackages() {
   return ret;
 }
 
+std::vector<ApexFile> CalculateInactivePackages(
+    const std::vector<ApexFile>& active) {
+  std::vector<ApexFile> inactive = GetFactoryPackages();
+  auto new_end = std::remove_if(
+      inactive.begin(), inactive.end(), [&active](const ApexFile& apex) {
+        return std::any_of(active.begin(), active.end(),
+                           [&apex](const ApexFile& active_apex) {
+                             return apex.GetPath() == active_apex.GetPath();
+                           });
+      });
+  inactive.erase(new_end, inactive.end());
+  return std::move(inactive);
+}
+
 Result<void> EmitApexInfoList(bool is_bootstrap) {
   // on a non-updatable device, we don't have APEX database to emit
   if (!android::sysprop::ApexProperties::updatable().value_or(false)) {
@@ -1375,15 +1389,7 @@ Result<void> EmitApexInfoList(bool is_bootstrap) {
   // we skip for non-activated built-in apexes in bootstrap mode
   // in order to avoid boottime increase
   if (!is_bootstrap) {
-    inactive = GetFactoryPackages();
-    auto new_end = std::remove_if(
-        inactive.begin(), inactive.end(), [&active](const ApexFile& apex) {
-          return std::any_of(active.begin(), active.end(),
-                             [&apex](const ApexFile& active_apex) {
-                               return apex.GetPath() == active_apex.GetPath();
-                             });
-        });
-    inactive.erase(new_end, inactive.end());
+    inactive = CalculateInactivePackages(active);
   }
 
   std::stringstream xml;
@@ -3487,6 +3493,26 @@ Result<size_t> ComputePackageIdMinor(const ApexFile& apex) {
   return next_minor;
 }
 
+Result<void> UpdateApexInfoList() {
+  std::vector<ApexFile> active(GetActivePackages());
+  std::vector<ApexFile> inactive = CalculateInactivePackages(active);
+
+  std::stringstream xml;
+  CollectApexInfoList(xml, active, inactive);
+
+  std::string name = StringPrintf("%s/.default-%s", kApexRoot, kApexInfoList);
+  unique_fd fd(TEMP_FAILURE_RETRY(
+      open(name.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0644)));
+  if (fd.get() == -1) {
+    return ErrnoError() << "Can't open " << name;
+  }
+  if (!WriteStringToFd(xml.str(), fd)) {
+    return ErrnoError() << "Failed to write to " << name;
+  }
+
+  return {};
+}
+
 Result<ApexFile> InstallPackage(const std::string& package_path) {
   LOG(INFO) << "Installing " << package_path;
   auto temp_apex = ApexFile::Open(package_path);
@@ -3582,7 +3608,10 @@ Result<ApexFile> InstallPackage(const std::string& package_path) {
     }
   }
 
-  // TODO(b/188713178): update apex-info-list.xml
+  if (auto res = UpdateApexInfoList(); !res.ok()) {
+    LOG(ERROR) << res.error();
+  }
+
   return new_apex;
 }
 
