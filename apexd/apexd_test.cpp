@@ -716,6 +716,12 @@ class ApexdMountTest : public ApexdUnitTest {
 
 // TODO(b/187864524): cover other negative scenarios.
 TEST_F(ApexdMountTest, InstallPackageRejectsApexWithoutRebootlessSupport) {
+  std::string file_path = AddPreInstalledApex("apex.apexd_test.apex");
+  ApexFileRepository::GetInstance().AddPreInstalledApex({GetBuiltInDir()});
+
+  ASSERT_TRUE(IsOk(ActivatePackage(file_path)));
+  UnmountOnTearDown(file_path);
+
   auto ret = InstallPackage(GetTestFile("apex.apexd_test.apex"));
   ASSERT_FALSE(IsOk(ret));
   ASSERT_THAT(ret.error().message(),
@@ -727,12 +733,15 @@ TEST_F(ApexdMountTest, InstallPackageRejectsNoPreInstalledApex) {
   ASSERT_FALSE(IsOk(ret));
   ASSERT_THAT(
       ret.error().message(),
-      HasSubstr("No preinstalled apex found for package test.apex.rebootless"));
+      HasSubstr("No active version found for package test.apex.rebootless"));
 }
 
 TEST_F(ApexdMountTest, InstallPackageRejectsNoHashtree) {
   std::string file_path = AddPreInstalledApex("test.rebootless_apex_v1.apex");
   ApexFileRepository::GetInstance().AddPreInstalledApex({GetBuiltInDir()});
+
+  ASSERT_TRUE(IsOk(ActivatePackage(file_path)));
+  UnmountOnTearDown(file_path);
 
   auto ret =
       InstallPackage(GetTestFile("test.rebootless_apex_v2_no_hashtree.apex"));
@@ -778,6 +787,117 @@ TEST_F(ApexdMountTest, InstallPackageRejectsCorrupted) {
   auto ret = InstallPackage(GetTestFile("test.rebootless_apex_corrupted.apex"));
   ASSERT_FALSE(IsOk(ret));
   ASSERT_THAT(ret.error().message(), HasSubstr("Can't verify /dev/block/dm-"));
+}
+
+TEST_F(ApexdMountTest, InstallPackageRejectsProvidesSharedLibs) {
+  std::string file_path = AddPreInstalledApex("test.rebootless_apex_v1.apex");
+  ApexFileRepository::GetInstance().AddPreInstalledApex({GetBuiltInDir()});
+
+  ASSERT_TRUE(IsOk(ActivatePackage(file_path)));
+  UnmountOnTearDown(file_path);
+
+  auto ret = InstallPackage(
+      GetTestFile("test.rebootless_apex_provides_sharedlibs.apex"));
+  ASSERT_FALSE(IsOk(ret));
+  ASSERT_THAT(ret.error().message(), HasSubstr(" is a shared libs APEX"));
+}
+
+TEST_F(ApexdMountTest, InstallPackageRejectsProvidesNativeLibs) {
+  std::string file_path = AddPreInstalledApex("test.rebootless_apex_v1.apex");
+  ApexFileRepository::GetInstance().AddPreInstalledApex({GetBuiltInDir()});
+
+  ASSERT_TRUE(IsOk(ActivatePackage(file_path)));
+  UnmountOnTearDown(file_path);
+
+  auto ret = InstallPackage(
+      GetTestFile("test.rebootless_apex_provides_native_libs.apex"));
+  ASSERT_FALSE(IsOk(ret));
+  ASSERT_THAT(ret.error().message(), HasSubstr(" provides native libs"));
+}
+
+TEST_F(ApexdMountTest, InstallPackageRejectsRequiresSharedApexLibs) {
+  std::string file_path = AddPreInstalledApex("test.rebootless_apex_v1.apex");
+  ApexFileRepository::GetInstance().AddPreInstalledApex({GetBuiltInDir()});
+
+  ASSERT_TRUE(IsOk(ActivatePackage(file_path)));
+  UnmountOnTearDown(file_path);
+
+  auto ret = InstallPackage(
+      GetTestFile("test.rebootless_apex_requires_shared_apex_libs.apex"));
+  ASSERT_FALSE(IsOk(ret));
+  ASSERT_THAT(ret.error().message(), HasSubstr(" requires shared apex libs"));
+}
+
+TEST_F(ApexdMountTest, InstallPackageRejectsJniLibs) {
+  std::string file_path = AddPreInstalledApex("test.rebootless_apex_v1.apex");
+  ApexFileRepository::GetInstance().AddPreInstalledApex({GetBuiltInDir()});
+
+  ASSERT_TRUE(IsOk(ActivatePackage(file_path)));
+  UnmountOnTearDown(file_path);
+
+  auto ret = InstallPackage(GetTestFile("test.rebootless_apex_jni_libs.apex"));
+  ASSERT_FALSE(IsOk(ret));
+  ASSERT_THAT(ret.error().message(), HasSubstr(" requires JNI libs"));
+}
+
+TEST_F(ApexdMountTest, InstallPackageRejectsAddRequiredNativeLib) {
+  std::string file_path = AddPreInstalledApex("test.rebootless_apex_v1.apex");
+  ApexFileRepository::GetInstance().AddPreInstalledApex({GetBuiltInDir()});
+
+  ASSERT_TRUE(IsOk(ActivatePackage(file_path)));
+  UnmountOnTearDown(file_path);
+
+  auto ret =
+      InstallPackage(GetTestFile("test.rebootless_apex_add_native_lib.apex"));
+  ASSERT_FALSE(IsOk(ret));
+  ASSERT_THAT(ret.error().message(),
+              HasSubstr("Set of native libs required by"));
+  ASSERT_THAT(
+      ret.error().message(),
+      HasSubstr("differs from the one required by the currently active"));
+}
+
+TEST_F(ApexdMountTest, InstallPackageRejectsRemovesRequiredNativeLib) {
+  std::string file_path = AddPreInstalledApex("test.rebootless_apex_v1.apex");
+  ApexFileRepository::GetInstance().AddPreInstalledApex({GetBuiltInDir()});
+
+  ASSERT_TRUE(IsOk(ActivatePackage(file_path)));
+  UnmountOnTearDown(file_path);
+
+  auto ret = InstallPackage(
+      GetTestFile("test.rebootless_apex_remove_native_lib.apex"));
+  ASSERT_FALSE(IsOk(ret));
+  ASSERT_THAT(ret.error().message(),
+              HasSubstr("Set of native libs required by"));
+  ASSERT_THAT(
+      ret.error().message(),
+      HasSubstr("differs from the one required by the currently active"));
+}
+
+TEST_F(ApexdMountTest, InstallPackageRejectsAppInApex) {
+  std::string file_path = AddPreInstalledApex("test.rebootless_apex_v1.apex");
+  ApexFileRepository::GetInstance().AddPreInstalledApex({GetBuiltInDir()});
+
+  ASSERT_TRUE(IsOk(ActivatePackage(file_path)));
+  UnmountOnTearDown(file_path);
+
+  auto ret =
+      InstallPackage(GetTestFile("test.rebootless_apex_app_in_apex.apex"));
+  ASSERT_FALSE(IsOk(ret));
+  ASSERT_THAT(ret.error().message(), HasSubstr("contains app inside"));
+}
+
+TEST_F(ApexdMountTest, InstallPackageRejectsPrivAppInApex) {
+  std::string file_path = AddPreInstalledApex("test.rebootless_apex_v1.apex");
+  ApexFileRepository::GetInstance().AddPreInstalledApex({GetBuiltInDir()});
+
+  ASSERT_TRUE(IsOk(ActivatePackage(file_path)));
+  UnmountOnTearDown(file_path);
+
+  auto ret =
+      InstallPackage(GetTestFile("test.rebootless_apex_priv_app_in_apex.apex"));
+  ASSERT_FALSE(IsOk(ret));
+  ASSERT_THAT(ret.error().message(), HasSubstr("contains priv-app inside"));
 }
 
 TEST_F(ApexdMountTest, InstallPackagePreInstallVersionActive) {
