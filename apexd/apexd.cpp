@@ -3394,7 +3394,7 @@ Result<void> CheckSupportsNonStagedInstall(const ApexFile& cur_apex,
   return {};
 }
 
-Result<std::string> ComputePackageId(const ApexFile& apex) {
+Result<size_t> ComputePackageIdMinor(const ApexFile& apex) {
   static constexpr size_t kMaxVerityDevicesPerApexName = 3u;
   DeviceMapper& dm = DeviceMapper::Instance();
   std::vector<DeviceMapper::DmBlockDevice> dm_devices;
@@ -3427,9 +3427,7 @@ Result<std::string> ComputePackageId(const ApexFile& apex) {
                    << ") dm block devices associated with package "
                    << apex.GetManifest().name();
   }
-  std::string id =
-      GetPackageId(apex.GetManifest()) + "_" + std::to_string(next_minor);
-  return std::move(id);
+  return next_minor;
 }
 
 Result<ApexFile> InstallPackage(const std::string& package_path) {
@@ -3466,10 +3464,13 @@ Result<ApexFile> InstallPackage(const std::string& package_path) {
   }
 
   // 2. Compute params for mounting new apex.
-  auto new_id = ComputePackageId(*temp_apex);
-  if (!new_id.ok()) {
-    return new_id.error();
+  auto new_id_minor = ComputePackageIdMinor(*temp_apex);
+  if (!new_id_minor.ok()) {
+    return new_id_minor.error();
   }
+
+  std::string new_id = GetPackageId(temp_apex->GetManifest()) + "_" +
+                       std::to_string(*new_id_minor);
 
   // 2. Unmount currently active APEX.
   if (auto res = UnmountPackage(*cur_apex, /* allow_latest= */ true,
@@ -3478,11 +3479,24 @@ Result<ApexFile> InstallPackage(const std::string& package_path) {
     return res.error();
   }
 
-  // TODO(b/188713178): handle errors and cleanup at different stages.
-
   // 3. Hard link to final destination.
-  std::string target_file = StringPrintf(
-      "%s/%s.apex", gConfig->active_apex_data_dir, (*new_id).c_str());
+  std::string target_file =
+      StringPrintf("%s/%s.apex", gConfig->active_apex_data_dir, new_id.c_str());
+
+  auto guard = android::base::make_scope_guard([&]() {
+    if (unlink(target_file.c_str()) != 0 && errno != ENOENT) {
+      PLOG(ERROR) << "Failed to unlink " << target_file;
+    }
+    // We can't really rely on the fact that dm-verity device backing up
+    // previously active APEX is still around. We need to create a new one.
+    std::string old_new_id = GetPackageId(temp_apex->GetManifest()) + "_" +
+                             std::to_string(*new_id_minor + 1);
+    if (auto res = ActivatePackageImpl(*cur_apex, old_new_id); !res.ok()) {
+      // At this point not much we can do... :(
+      LOG(ERROR) << res.error();
+    }
+  });
+
   // At this point it should be safe to hard link |temp_apex| to
   // |params->target_file|. In case reboot happens during one of the stages
   // below, then on next boot apexd will pick up the new verified APEX.
@@ -3497,9 +3511,12 @@ Result<ApexFile> InstallPackage(const std::string& package_path) {
   }
 
   // 4. And activate new one.
-  if (auto res = ActivatePackageImpl(*new_apex, *new_id); !res.ok()) {
+  if (auto res = ActivatePackageImpl(*new_apex, new_id); !res.ok()) {
     return res.error();
   }
+
+  // Accept the install.
+  guard.Disable();
 
   // 4. Now we can unlink old APEX if it's not pre-installed.
   if (!ApexFileRepository::GetInstance().IsPreInstalledApex(*cur_apex)) {
