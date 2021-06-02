@@ -5,5 +5,8 @@
   "requireNativeLibs": [
     "libfoo",
     "libbar"
+  ],
+  "requireSharedApexLibs": [
+    "libabc"
   ]
 }
