@@ -30,6 +30,7 @@
 #include "apex_file_repository.h"
 #include "apexd.h"
 #include "apexd_checkpoint.h"
+#include "apexd_loop.h"
 #include "apexd_test_utils.h"
 #include "apexd_utils.h"
 
@@ -133,30 +134,11 @@ class ApexdUnitTest : public ::testing::Test {
 
   std::string AddBlockApex(const std::string& apex_name,
                            std::optional<std::string> pubkey = std::nullopt) {
-    auto signature = android::microdroid::ReadMicrodroidSignature(
-        vm_payload_signature_path_);
-
-    static constexpr const int kFirstApexPartition = 2;
-    auto partition_num = kFirstApexPartition + signature->apexes_size();
-    auto apex_path = StringPrintf("%s/vm-payload-%d", td_.path, partition_num);
-    auto apex_size = *GetFileSize(GetTestFile(apex_name));
-    {
-      // Create a temp file with padding at the end
-      std::ofstream out(apex_path);
-      std::ifstream in(GetTestFile(apex_name), std::ios::binary);
-      out << in.rdbuf();
-      out << std::string(10, 0);  // ten zeros.
-    }
-
-    auto apex = signature->add_apexes();
-    apex->set_name("apex" + std::to_string(partition_num));
-    apex->set_size(apex_size);
-    if (pubkey.has_value()) {
-      apex->set_publickey(*pubkey);
-    }
-
-    std::ofstream out(vm_payload_signature_path_);
-    WriteMicrodroidSignature(*signature, out);
+    auto apex_path = StringPrintf("%s/vm-payload-2", td_.path);
+    auto apex_file = GetTestFile(apex_name);
+    WriteSignature(apex_file, std::move(pubkey));
+    // loop_devices_ will be disposed after each test
+    loop_devices_.push_back(*WriteBlockApex(apex_file, apex_path));
     return apex_path;
   }
 
@@ -187,8 +169,17 @@ class ApexdUnitTest : public ::testing::Test {
     ASSERT_EQ(mkdir(decompression_dir_.c_str(), 0755), 0);
     ASSERT_EQ(mkdir(ota_reserved_dir_.c_str(), 0755), 0);
     ASSERT_EQ(mkdir(hash_tree_dir_.c_str(), 0755), 0);
-
+  }
+  void WriteSignature(const std::string& apex_file,
+                      std::optional<std::string> pubkey) {
     android::microdroid::MicrodroidSignature signature;
+
+    auto apex = signature.add_apexes();
+    apex->set_name("apex");
+    if (pubkey.has_value()) {
+      apex->set_publickey(*pubkey);
+    }
+
     std::ofstream out(vm_payload_signature_path_);
     WriteMicrodroidSignature(signature, out);
   }
@@ -202,6 +193,7 @@ class ApexdUnitTest : public ::testing::Test {
   std::string hash_tree_dir_;
   std::string vm_payload_signature_path_;
   ApexdConfig config_;
+  std::vector<loop::LoopbackDeviceUniqueFd> loop_devices_;  // to be cleaned up
 };
 
 // Apex that does not have pre-installed version, does not get selected
@@ -690,7 +682,6 @@ TEST_F(ApexdUnitTest, ReserveSpaceForCompressedApexErrorForNegativeValue) {
 // A test fixture to use for tests that mount/unmount apexes.
 class ApexdMountTest : public ApexdUnitTest {
  public:
-
   void UnmountOnTearDown(const std::string& apex_file) {
     to_unmount_.push_back(apex_file);
   }

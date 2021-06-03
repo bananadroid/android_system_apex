@@ -18,7 +18,6 @@
 #define ANDROID_APEXD_APEX_FILE_H_
 
 #include <memory>
-#include <optional>
 #include <string>
 #include <vector>
 
@@ -42,12 +41,7 @@ struct ApexVerityData {
 // the content.
 class ApexFile {
  public:
-  // Opens an APEX file from the |path|. Optional |size| param tells the size of
-  // the file. In most cases, you don't have to pass the size of the file, but
-  // in case you know the size but the file has padded data at the end, you can
-  // pass the size.
-  static android::base::Result<ApexFile> Open(
-      const std::string& path, std::optional<uint32_t> size = std::nullopt);
+  static android::base::Result<ApexFile> Open(const std::string& path);
 
   ApexFile() = delete;
   ApexFile(ApexFile&&) = default;
@@ -56,7 +50,6 @@ class ApexFile {
   const std::string& GetPath() const { return apex_path_; }
   const std::optional<int32_t>& GetImageOffset() const { return image_offset_; }
   const std::optional<size_t>& GetImageSize() const { return image_size_; }
-  const std::optional<uint32_t>& GetFileSize() const { return file_size_; }
   const ::apex::proto::ApexManifest& GetManifest() const { return manifest_; }
   const std::string& GetBundledPublicKey() const { return apex_pubkey_; }
   const std::optional<std::string>& GetFsType() const { return fs_type_; }
@@ -70,16 +63,14 @@ class ApexFile {
            const std::optional<int32_t>& image_offset,
            const std::optional<size_t>& image_size,
            ::apex::proto::ApexManifest manifest, const std::string& apex_pubkey,
-           const std::optional<std::string>& fs_type, bool is_compressed,
-           std::optional<size_t> file_size)
+           const std::optional<std::string>& fs_type, bool is_compressed)
       : apex_path_(apex_path),
         image_offset_(image_offset),
         image_size_(image_size),
         manifest_(std::move(manifest)),
         apex_pubkey_(apex_pubkey),
         fs_type_(fs_type),
-        is_compressed_(is_compressed),
-        file_size_(file_size) {}
+        is_compressed_(is_compressed) {}
 
   std::string apex_path_;
   std::optional<int32_t> image_offset_;
@@ -88,7 +79,6 @@ class ApexFile {
   std::string apex_pubkey_;
   std::optional<std::string> fs_type_;
   bool is_compressed_;
-  std::optional<uint32_t> file_size_;
 };
 
 }  // namespace apex
