@@ -36,6 +36,8 @@
 #include <selinux/android.h>
 
 #include "apex_file.h"
+#include "apexd_loop.h"
+#include "apexd_utils.h"
 #include "session_state.pb.h"
 
 #include "com_android_apex.h"
@@ -302,6 +304,48 @@ inline android::base::Result<void> SetUpApexTestEnvironment() {
   }
 
   return {};
+}
+
+inline base::Result<loop::LoopbackDeviceUniqueFd> MountViaLoopDevice(
+    const std::string& filepath, const std::string& mount_point) {
+  auto loop_device =
+      loop::CreateLoopDevice(filepath, 0, *GetFileSize(filepath));
+  if (loop_device.ok()) {
+    close(open(mount_point.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC,
+               0644));
+    if (0 != mount(loop_device->name.c_str(), mount_point.c_str(), nullptr,
+                   MS_BIND, nullptr)) {
+      return base::ErrnoError() << "can't mount.";
+    }
+  }
+  return loop_device;
+}
+
+inline size_t AlignSizeToBlock(size_t size) {
+  static constexpr int kBlockSize = 4096;
+  return (size + kBlockSize - 1) / kBlockSize * kBlockSize;
+}
+
+inline base::Result<loop::LoopbackDeviceUniqueFd> WriteBlockApex(
+    const std::string& apex_file, const std::string& apex_path) {
+  std::string intermediate_path = apex_path + ".intermediate";
+  std::ofstream out(intermediate_path);
+
+  // copy
+  std::ifstream in(apex_file, std::ios::binary);
+  out << in.rdbuf();
+
+  // padding
+  size_t size = out.tellp();
+  size_t total_size = AlignSizeToBlock(size + 4);  // 4 for size suffix
+  out << std::string(total_size - size - 4, '\0');
+
+  // size at the end
+  uint32_t be_size = htobe32(static_cast<uint32_t>(size));
+  out.write(reinterpret_cast<const char*>(&be_size), sizeof(be_size));
+  out.close();
+
+  return MountViaLoopDevice(intermediate_path, apex_path);
 }
 
 }  // namespace apex
