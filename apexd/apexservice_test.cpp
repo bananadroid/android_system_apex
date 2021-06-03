@@ -1413,19 +1413,22 @@ TEST_F(ApexServiceTest, GetFactoryPackages) {
   ASSERT_TRUE(IsOk(factory_packages));
   ASSERT_TRUE(factory_packages->size() > 0);
 
-  std::vector<std::string> builtinDirs;
+  std::vector<std::string> builtin_dirs;
   for (const auto& d : kApexPackageBuiltinDirs) {
     std::string realpath;
     if (android::base::Realpath(d, &realpath)) {
-      builtinDirs.push_back(realpath);
+      builtin_dirs.push_back(realpath);
     }
     // realpath might fail in case when dir is a non-existing path. We can
     // ignore non-existing paths.
   }
 
+  // Decompressed APEX is also considred factory package
+  builtin_dirs.push_back(kApexDecompressedDir);
+
   for (const ApexInfo& package : *factory_packages) {
     bool is_builtin = false;
-    for (const auto& dir : builtinDirs) {
+    for (const auto& dir : builtin_dirs) {
       if (StartsWith(package.modulePath, dir)) {
         is_builtin = true;
       }
