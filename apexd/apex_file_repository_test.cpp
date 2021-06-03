@@ -44,8 +44,6 @@ using android::apex::testing::IsOk;
 using android::base::GetExecutableDirectory;
 using android::base::StringPrintf;
 using ::testing::ByRef;
-using ::testing::Eq;
-using ::testing::Optional;
 using ::testing::UnorderedElementsAre;
 
 static std::string GetTestDataDir() { return GetExecutableDirectory(); }
@@ -496,38 +494,6 @@ TEST(ApexFileRepositoryTest, GetPreInstalledApex) {
   ASSERT_THAT(ret, ApexFileEq(ByRef(*apex)));
 }
 
-TEST(ApexFileRepositoryTest, GetApexFileWithPath) {
-  // Prepare test data.
-  TemporaryDir built_in_dir;
-  fs::copy(GetTestFile("apex.apexd_test.apex"), built_in_dir.path);
-
-  ApexFileRepository instance;
-  ASSERT_TRUE(IsOk(instance.AddPreInstalledApex({built_in_dir.path})));
-
-  auto apex_path = StringPrintf("%s/apex.apexd_test.apex", built_in_dir.path);
-  auto apex = ApexFile::Open(apex_path);
-  ASSERT_RESULT_OK(apex);
-
-  auto ret = instance.GetApexFile(apex_path);
-  ASSERT_THAT(ret, Optional(ApexFileEq(ByRef(*apex))));
-}
-
-TEST(ApexFileRepositoryTest, GetApexFileReturnsNulloptWithUnknownPath) {
-  // Prepare test data.
-  TemporaryDir built_in_dir;
-  fs::copy(GetTestFile("apex.apexd_test.apex"), built_in_dir.path);
-
-  ApexFileRepository instance;
-  ASSERT_TRUE(IsOk(instance.AddPreInstalledApex({built_in_dir.path})));
-
-  auto apex_path = StringPrintf("%s/apex.apexd_test.apex", built_in_dir.path);
-  auto apex = ApexFile::Open(apex_path);
-  ASSERT_RESULT_OK(apex);
-
-  auto ret = instance.GetApexFile(apex_path + ".wrong");
-  ASSERT_THAT(ret, Eq(std::nullopt));
-}
-
 TEST(ApexFileRepositoryTest, GetPreInstalledApexNoSuchApexAborts) {
   ASSERT_DEATH(
       {
@@ -547,15 +513,9 @@ struct ApexFileRepositoryTestAddBlockApex : public ::testing::Test {
     for (const auto& apex_path : apex_paths) {
       auto apex = signature.add_apexes();
       apex->set_name(apex_path);  // no strict rule for now; use the file_name
-      apex->set_size(GetFileSize(apex_path));
     }
     std::ofstream out(signature_path);
     android::microdroid::WriteMicrodroidSignature(signature, out);
-  }
-  size_t GetFileSize(const std::string& file_name) {
-    struct stat st;
-    CHECK(stat(file_name.c_str(), &st) == 0);
-    return st.st_size;
   }
 };
 
@@ -575,8 +535,8 @@ TEST_F(ApexFileRepositoryTestAddBlockApex,
 
   WriteMicrodroidSignature(signature_partition_path,
                            {test_apex_foo, test_apex_bar});
-  fs::copy(test_apex_foo, apex_foo_path);
-  fs::copy(test_apex_bar, apex_bar_path);
+  auto loop_device1 = WriteBlockApex(test_apex_foo, apex_foo_path);
+  auto loop_device2 = WriteBlockApex(test_apex_bar, apex_bar_path);
 
   // call ApexFileRepository::AddBlockApex()
   ApexFileRepository instance;
@@ -612,8 +572,8 @@ TEST_F(ApexFileRepositoryTestAddBlockApex,
 
   // signature lists only "foo"
   WriteMicrodroidSignature(signature_partition_path, {test_apex_foo});
-  fs::copy(test_apex_foo, apex_foo_path);
-  fs::copy(test_apex_bar, apex_bar_path);
+  auto loop_device1 = WriteBlockApex(test_apex_foo, apex_foo_path);
+  auto loop_device2 = WriteBlockApex(test_apex_bar, apex_bar_path);
 
   // call ApexFileRepository::AddBlockApex()
   ApexFileRepository instance;
@@ -645,8 +605,8 @@ TEST_F(ApexFileRepositoryTestAddBlockApex, FailsWhenTheresDuplicateNames) {
   // signature lists only "foo"
   WriteMicrodroidSignature(signature_partition_path,
                            {test_apex_foo, test_apex_bar});
-  fs::copy(test_apex_foo, apex_foo_path);
-  fs::copy(test_apex_bar, apex_bar_path);
+  auto loop_device1 = WriteBlockApex(test_apex_foo, apex_foo_path);
+  auto loop_device2 = WriteBlockApex(test_apex_bar, apex_bar_path);
 
   // call ApexFileRepository::AddBlockApex()
   ApexFileRepository instance;

@@ -145,7 +145,7 @@ Result<void> ApexFileRepository::AddBlockApex(
 
     const std::string apex_path =
         disk_path + std::to_string(i + kFirstApexPartition);
-    auto apex_file = ApexFile::Open(apex_path, apex_signature.size());
+    auto apex_file = ApexFile::Open(apex_path);
     if (!apex_file.ok()) {
       return Error() << "Failed to open " << apex_path << " : "
                      << apex_file.error();
@@ -345,21 +345,6 @@ ApexFileRef ApexFileRepository::GetPreInstalledApex(
   auto it = pre_installed_store_.find(name);
   CHECK(it != pre_installed_store_.end());
   return std::cref(it->second);
-}
-
-std::optional<ApexFileRef> ApexFileRepository::GetApexFile(
-    const std::string& full_path) const {
-  for (const auto& [_, apex] : pre_installed_store_) {
-    if (apex.GetPath() == full_path) {
-      return std::cref(apex);
-    }
-  }
-  for (const auto& [_, apex] : data_store_) {
-    if (apex.GetPath() == full_path) {
-      return std::cref(apex);
-    }
-  }
-  return std::nullopt;
 }
 
 }  // namespace apex
