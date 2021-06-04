@@ -4,6 +4,7 @@
   "supportsRebootlessUpdate": true,
   "requireNativeLibs": [
     "libfoo",
-    "libbar"
+    "libbar",
+    "libnew"
   ]
 }

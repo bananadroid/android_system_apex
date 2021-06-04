@@ -5,5 +5,8 @@
   "requireNativeLibs": [
     "libfoo",
     "libbar"
+  ],
+  "jniLibs": [
+    "libjniwow"
   ]
 }
