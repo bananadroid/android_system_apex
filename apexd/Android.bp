@@ -529,3 +529,12 @@ xsd_config {
   api_dir: "apex-info-list-api",
   gen_writer: true,
 }
+
+xsd_config {
+  name: "apex-info-list-tinyxml",
+  srcs: ["ApexInfoList.xsd"],
+  package_name: "com.android.apex",
+  api_dir: "apex-info-list-api",
+  gen_writer: true,
+  tinyxml: true,
+}
