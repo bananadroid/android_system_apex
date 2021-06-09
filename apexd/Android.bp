@@ -212,7 +212,7 @@ cc_defaults {
   static_libs: [
     "lib_apex_session_state_proto",
     "lib_apex_manifest_proto",
-    "lib_microdroid_signature_proto",
+    "lib_microdroid_metadata_proto",
     "libavb",
   ],
   static: {
