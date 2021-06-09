@@ -3143,7 +3143,7 @@ int OnStartInVmMode() {
   }
 
   if (auto status =
-          instance.AddBlockApex(gConfig->vm_payload_signature_partition);
+          instance.AddBlockApex(gConfig->vm_payload_metadata_partition);
       !status.ok()) {
     LOG(ERROR) << "Failed to scan block APEX files: " << status.error();
     return 1;

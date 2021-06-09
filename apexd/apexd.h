@@ -45,12 +45,12 @@ struct ApexdConfig {
   const char* decompression_dir;
   const char* ota_reserved_dir;
   const char* apex_hash_tree_dir;
-  // Overrides the path to the "signature" partition which is by default
-  // /dev/block/by-name/signature It should be a path pointing the first
+  // Overrides the path to the "metadata" partition which is by default
+  // /dev/block/by-name/metadata It should be a path pointing the first
   // partition of the VM payload disk. So, realpath() of this path is checked if
-  // it has the suffix "1". For example, /test-dir/test-signature-1 can be valid
+  // it has the suffix "1". For example, /test-dir/test-metadata-1 can be valid
   // and the subsequent numbers should point APEX files.
-  const char* vm_payload_signature_partition;
+  const char* vm_payload_metadata_partition;
 };
 
 static const ApexdConfig kDefaultConfig = {
@@ -60,7 +60,7 @@ static const ApexdConfig kDefaultConfig = {
     kApexDecompressedDir,
     kOtaReservedDir,
     kApexHashTreeDir,
-    kVmPayloadSignaturePartition,
+    kVmPayloadMetadataPartition,
 };
 
 class CheckpointInterface;

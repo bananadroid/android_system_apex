@@ -24,7 +24,7 @@
 #include <android-base/stringprintf.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
-#include <microdroid/signature.h>
+#include <microdroid/metadata.h>
 
 #include "apex_database.h"
 #include "apex_file_repository.h"
@@ -94,7 +94,7 @@ class ApexdUnitTest : public ::testing::Test {
     decompression_dir_ = StringPrintf("%s/decompressed-apex", td_.path);
     ota_reserved_dir_ = StringPrintf("%s/ota-reserved", td_.path);
     hash_tree_dir_ = StringPrintf("%s/apex-hash-tree", td_.path);
-    vm_payload_signature_path_ =
+    vm_payload_metadata_path_ =
         StringPrintf("%s/vm-payload-1", td_.path);  // should end with 1
     config_ = {kTestApexdStatusSysprop,
                {built_in_dir_},
@@ -102,7 +102,7 @@ class ApexdUnitTest : public ::testing::Test {
                decompression_dir_.c_str(),
                ota_reserved_dir_.c_str(),
                hash_tree_dir_.c_str(),
-               vm_payload_signature_path_.c_str()};
+               vm_payload_metadata_path_.c_str()};
   }
 
   const std::string& GetBuiltInDir() { return built_in_dir_; }
@@ -136,7 +136,7 @@ class ApexdUnitTest : public ::testing::Test {
                            std::optional<std::string> pubkey = std::nullopt) {
     auto apex_path = StringPrintf("%s/vm-payload-2", td_.path);
     auto apex_file = GetTestFile(apex_name);
-    WriteSignature(apex_file, std::move(pubkey));
+    WriteMetadata(apex_file, std::move(pubkey));
     // loop_devices_ will be disposed after each test
     loop_devices_.push_back(*WriteBlockApex(apex_file, apex_path));
     return apex_path;
@@ -170,18 +170,18 @@ class ApexdUnitTest : public ::testing::Test {
     ASSERT_EQ(mkdir(ota_reserved_dir_.c_str(), 0755), 0);
     ASSERT_EQ(mkdir(hash_tree_dir_.c_str(), 0755), 0);
   }
-  void WriteSignature(const std::string& apex_file,
-                      std::optional<std::string> pubkey) {
-    android::microdroid::MicrodroidSignature signature;
+  void WriteMetadata(const std::string& apex_file,
+                     std::optional<std::string> pubkey) {
+    android::microdroid::Metadata metadata;
 
-    auto apex = signature.add_apexes();
+    auto apex = metadata.add_apexes();
     apex->set_name("apex");
     if (pubkey.has_value()) {
       apex->set_publickey(*pubkey);
     }
 
-    std::ofstream out(vm_payload_signature_path_);
-    WriteMicrodroidSignature(signature, out);
+    std::ofstream out(vm_payload_metadata_path_);
+    android::microdroid::WriteMetadata(metadata, out);
   }
 
  private:
@@ -191,7 +191,7 @@ class ApexdUnitTest : public ::testing::Test {
   std::string decompression_dir_;
   std::string ota_reserved_dir_;
   std::string hash_tree_dir_;
-  std::string vm_payload_signature_path_;
+  std::string vm_payload_metadata_path_;
   ApexdConfig config_;
   std::vector<loop::LoopbackDeviceUniqueFd> loop_devices_;  // to be cleaned up
 };
