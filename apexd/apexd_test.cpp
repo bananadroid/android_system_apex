@@ -31,6 +31,7 @@
 #include "apexd.h"
 #include "apexd_checkpoint.h"
 #include "apexd_loop.h"
+#include "apexd_session.h"
 #include "apexd_test_utils.h"
 #include "apexd_utils.h"
 
@@ -94,15 +95,13 @@ class ApexdUnitTest : public ::testing::Test {
     decompression_dir_ = StringPrintf("%s/decompressed-apex", td_.path);
     ota_reserved_dir_ = StringPrintf("%s/ota-reserved", td_.path);
     hash_tree_dir_ = StringPrintf("%s/apex-hash-tree", td_.path);
+    staged_session_dir_ = StringPrintf("%s/staged-session-dir", td_.path);
     vm_payload_metadata_path_ =
         StringPrintf("%s/vm-payload-1", td_.path);  // should end with 1
-    config_ = {kTestApexdStatusSysprop,
-               {built_in_dir_},
-               data_dir_.c_str(),
-               decompression_dir_.c_str(),
-               ota_reserved_dir_.c_str(),
-               hash_tree_dir_.c_str(),
-               vm_payload_metadata_path_.c_str()};
+    config_ = {kTestApexdStatusSysprop,     {built_in_dir_},
+               data_dir_.c_str(),           decompression_dir_.c_str(),
+               ota_reserved_dir_.c_str(),   hash_tree_dir_.c_str(),
+               staged_session_dir_.c_str(), vm_payload_metadata_path_.c_str()};
   }
 
   const std::string& GetBuiltInDir() { return built_in_dir_; }
@@ -110,6 +109,10 @@ class ApexdUnitTest : public ::testing::Test {
   const std::string& GetDecompressionDir() { return decompression_dir_; }
   const std::string& GetOtaReservedDir() { return ota_reserved_dir_; }
   const std::string& GetHashTreeDir() { return hash_tree_dir_; }
+  const std::string GetStagedDir(int session_id) {
+    return StringPrintf("%s/session_%d", staged_session_dir_.c_str(),
+                        session_id);
+  }
 
   std::string GetRootDigest(const ApexFile& apex) {
     if (apex.IsCompressed()) {
@@ -160,6 +163,15 @@ class ApexdUnitTest : public ::testing::Test {
     return PrepareCompressedApex(name, built_in_dir_);
   }
 
+  Result<ApexSession> CreateStagedSession(const std::string& apex_name,
+                                          int session_id) {
+    CreateDirIfNeeded(GetStagedDir(session_id), 0755);
+    fs::copy(GetTestFile(apex_name), GetStagedDir(session_id));
+    auto result = ApexSession::CreateSession(session_id);
+    result->SetBuildFingerprint(GetProperty("ro.build.fingerprint", ""));
+    return result;
+  }
+
  protected:
   void SetUp() override {
     SetConfig(config_);
@@ -169,6 +181,9 @@ class ApexdUnitTest : public ::testing::Test {
     ASSERT_EQ(mkdir(decompression_dir_.c_str(), 0755), 0);
     ASSERT_EQ(mkdir(ota_reserved_dir_.c_str(), 0755), 0);
     ASSERT_EQ(mkdir(hash_tree_dir_.c_str(), 0755), 0);
+    ASSERT_EQ(mkdir(staged_session_dir_.c_str(), 0755), 0);
+
+    DeleteDirContent(ApexSession::GetSessionsDir());
   }
   void WriteMetadata(const std::string& apex_file,
                      std::optional<std::string> pubkey) {
@@ -184,6 +199,8 @@ class ApexdUnitTest : public ::testing::Test {
     android::microdroid::WriteMetadata(metadata, out);
   }
 
+  void TearDown() override { DeleteDirContent(ApexSession::GetSessionsDir()); }
+
  private:
   TemporaryDir td_;
   std::string built_in_dir_;
@@ -192,6 +209,7 @@ class ApexdUnitTest : public ::testing::Test {
   std::string ota_reserved_dir_;
   std::string hash_tree_dir_;
   std::string vm_payload_metadata_path_;
+  std::string staged_session_dir_;
   ApexdConfig config_;
   std::vector<loop::LoopbackDeviceUniqueFd> loop_devices_;  // to be cleaned up
 };
@@ -694,6 +712,7 @@ class ApexdMountTest : public ApexdUnitTest {
   }
 
   void TearDown() final {
+    ApexdUnitTest::TearDown();
     for (const auto& apex : to_unmount_) {
       if (auto status = DeactivatePackage(apex); !status.ok()) {
         LOG(ERROR) << "Failed to unmount " << apex << " : " << status.error();
@@ -3459,6 +3478,87 @@ TEST_F(ApexdMountTest, GetActivePackagesReturningBlockApexesAsWell) {
   auto active_apexes = GetActivePackages();
   ASSERT_EQ(1u, active_apexes.size());
   ASSERT_EQ(path1, active_apexes[0].GetPath());
+}
+
+class ApexActivationFailureTests : public ApexdMountTest {};
+
+TEST_F(ApexActivationFailureTests, BuildFingerprintDifferent) {
+  auto apex_session = CreateStagedSession("apex.apexd_test.apex", 123);
+  apex_session->SetBuildFingerprint("wrong fingerprint");
+  apex_session->UpdateStateAndCommit(SessionState::STAGED);
+
+  OnStart();
+
+  apex_session = ApexSession::GetSession(123);
+  ASSERT_THAT(apex_session->GetErrorMessage(),
+              HasSubstr("APEX build fingerprint has changed"));
+}
+
+TEST_F(ApexActivationFailureTests, ApexFileMissingInStagingDirectory) {
+  auto apex_session = CreateStagedSession("apex.apexd_test.apex", 123);
+  apex_session->UpdateStateAndCommit(SessionState::STAGED);
+  // Delete the apex file in staging directory
+  DeleteDirContent(GetStagedDir(123));
+
+  OnStart();
+
+  apex_session = ApexSession::GetSession(123);
+  ASSERT_THAT(apex_session->GetErrorMessage(),
+              HasSubstr("No APEX packages found"));
+}
+
+TEST_F(ApexActivationFailureTests, MultipleApexFileInStagingDirectory) {
+  auto apex_session = CreateStagedSession("apex.apexd_test.apex", 123);
+  CreateStagedSession("com.android.apex.compressed.v1_original.apex", 123);
+  apex_session->UpdateStateAndCommit(SessionState::STAGED);
+
+  OnStart();
+
+  apex_session = ApexSession::GetSession(123);
+  ASSERT_THAT(apex_session->GetErrorMessage(),
+              HasSubstr("More than one APEX package found"));
+}
+
+TEST_F(ApexActivationFailureTests, PostInstallFailsForApex) {
+  auto apex_session =
+      CreateStagedSession("apex.apexd_test_corrupt_superblock_apex.apex", 123);
+  apex_session->UpdateStateAndCommit(SessionState::STAGED);
+
+  OnStart();
+
+  apex_session = ApexSession::GetSession(123);
+  ASSERT_THAT(apex_session->GetErrorMessage(),
+              HasSubstr("Postinstall failed for session"));
+}
+
+TEST_F(ApexActivationFailureTests, CorruptedApexCannotBeStaged) {
+  auto apex_session = CreateStagedSession("corrupted_b146895998.apex", 123);
+  apex_session->UpdateStateAndCommit(SessionState::STAGED);
+
+  OnStart();
+
+  apex_session = ApexSession::GetSession(123);
+  ASSERT_THAT(apex_session->GetErrorMessage(),
+              HasSubstr("Activation failed for packages"));
+}
+
+TEST_F(ApexActivationFailureTests, ActivatePackageImplFails) {
+  auto shim_path = AddPreInstalledApex("com.android.apex.cts.shim.apex");
+  auto& instance = ApexFileRepository::GetInstance();
+  ASSERT_RESULT_OK(instance.AddPreInstalledApex({GetBuiltInDir()}));
+
+  auto apex_session =
+      CreateStagedSession("com.android.apex.cts.shim.v2_wrong_sha.apex", 123);
+  apex_session->UpdateStateAndCommit(SessionState::STAGED);
+
+  UnmountOnTearDown(shim_path);
+  OnStart();
+
+  apex_session = ApexSession::GetSession(123);
+  ASSERT_THAT(apex_session->GetErrorMessage(),
+              HasSubstr("Failed to activate packages"));
+  ASSERT_THAT(apex_session->GetErrorMessage(),
+              HasSubstr("has unexpected SHA512 hash"));
 }
 
 }  // namespace apex
