@@ -2340,6 +2340,7 @@ Result<void> CreateSharedLibsApexDir() {
 }
 
 int OnBootstrap() {
+  auto time_started = boot_clock::now();
   Result<void> pre_allocate = PreAllocateLoopDevices();
   if (!pre_allocate.ok()) {
     LOG(ERROR) << "Failed to pre-allocate loop devices : "
@@ -2389,7 +2390,9 @@ int OnBootstrap() {
   }
 
   OnAllPackagesActivated(/*is_bootstrap=*/true);
-  LOG(INFO) << "Bootstrapping done";
+  auto time_elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+    boot_clock::now() - time_started).count();
+  LOG(INFO) << "OnBootstrap done, duration=" << time_elapsed;
   return 0;
 }
 
@@ -2714,6 +2717,7 @@ Result<void> ValidateDecompressedApex(const ApexFile& capex,
 
 void OnStart() {
   LOG(INFO) << "Marking APEXd as starting";
+  auto time_started = boot_clock::now();
   if (!SetProperty(gConfig->apex_status_sysprop, kApexStatusStarting)) {
     PLOG(ERROR) << "Failed to set " << gConfig->apex_status_sysprop << " to "
                 << kApexStatusStarting;
@@ -2815,6 +2819,10 @@ void OnStart() {
 
   // Now that APEXes are mounted, snapshot or restore DE_sys data.
   SnapshotOrRestoreDeSysData();
+
+  auto time_elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+    boot_clock::now() - time_started).count();
+  LOG(INFO) << "OnStart done, duration=" << time_elapsed;
 }
 
 void OnAllPackagesActivated(bool is_bootstrap) {
