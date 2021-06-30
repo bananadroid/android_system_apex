@@ -1951,7 +1951,6 @@ void DeleteDePreRestoreSnapshots(const ApexSession& session) {
 
 void OnBootCompleted() {
   ApexdLifecycle::GetInstance().MarkBootCompleted();
-  BootCompletedCleanup();
 }
 
 // Returns true if any session gets staged
