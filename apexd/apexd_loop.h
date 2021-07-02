@@ -55,6 +55,8 @@ struct LoopbackDeviceUniqueFd {
   int Get() { return device_fd.get(); }
 };
 
+android::base::Result<LoopbackDeviceUniqueFd> WaitForDevice(int num);
+
 android::base::Result<void> ConfigureReadAhead(const std::string& device_path);
 
 android::base::Result<void> PreAllocateLoopDevices(size_t num);
