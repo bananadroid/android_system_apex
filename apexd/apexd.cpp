@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#define ATRACE_TAG ATRACE_TAG_PACKAGE_MANAGER
+
 #include "apexd.h"
 #include "apex_file_repository.h"
 #include "apexd_private.h"
@@ -50,6 +52,7 @@
 #include <libdm/dm_table.h>
 #include <libdm/dm_target.h>
 #include <selinux/android.h>
+#include <utils/Trace.h>
 
 #include <dirent.h>
 #include <fcntl.h>
@@ -318,6 +321,7 @@ Result<DmVerityDevice> CreateVerityDevice(
 Result<DmVerityDevice> CreateVerityDevice(const std::string& name,
                                           const DmTable& table,
                                           bool reuse_device) {
+  ATRACE_NAME("CreateVerityDevice");
   LOG(VERBOSE) << "Creating verity device " << name;
   auto timeout = std::chrono::milliseconds(
       android::sysprop::ApexProperties::dm_create_timeout().value_or(1000));
@@ -459,6 +463,8 @@ Result<MountedApexData> MountPackageImpl(const ApexFile& apex,
                                          const std::string& hashtree_file,
                                          bool verify_image, bool reuse_device,
                                          bool temp_mount = false) {
+  auto tag = "MountPackageImpl: " + apex.GetManifest().name();
+  ATRACE_NAME(tag.c_str());
   if (apex.IsCompressed()) {
     return Error() << "Cannot directly mount compressed APEX "
                    << apex.GetPath();
@@ -1265,6 +1271,7 @@ bool IsValidPackageName(const std::string& package_name) {
 Result<void> ActivatePackageImpl(const ApexFile& apex_file,
                                  const std::string& device_name,
                                  bool reuse_device) {
+  ATRACE_NAME("ActivatePackageImpl");
   const ApexManifest& manifest = apex_file.GetManifest();
 
   if (!IsValidPackageName(manifest.name())) {
@@ -1570,6 +1577,7 @@ enum ActivationMode { kBootstrapMode = 0, kBootMode, kOtaChrootMode, kVmMode };
 std::vector<Result<void>> ActivateApexWorker(
     ActivationMode mode, std::queue<const ApexFile*>& apex_queue,
     std::mutex& mutex) {
+  ATRACE_NAME("ActivateApexWorker");
   std::vector<Result<void>> ret;
 
   while (true) {
@@ -1605,6 +1613,7 @@ std::vector<Result<void>> ActivateApexWorker(
 
 Result<void> ActivateApexPackages(const std::vector<ApexFileRef>& apexes,
                                   ActivationMode mode) {
+  ATRACE_NAME("ActivateApexPackages");
   std::queue<const ApexFile*> apex_queue;
   std::mutex apex_queue_mutex;
 
@@ -2347,6 +2356,7 @@ Result<void> CreateSharedLibsApexDir() {
 }
 
 int OnBootstrap() {
+  ATRACE_NAME("OnBootstrap");
   auto time_started = boot_clock::now();
   Result<void> pre_allocate = PreAllocateLoopDevices();
   if (!pre_allocate.ok()) {
@@ -2728,6 +2738,7 @@ Result<void> ValidateDecompressedApex(const ApexFile& capex,
 }
 
 void OnStart() {
+  ATRACE_NAME("OnStart");
   LOG(INFO) << "Marking APEXd as starting";
   auto time_started = boot_clock::now();
   if (!SetProperty(gConfig->apex_status_sysprop, kApexStatusStarting)) {
