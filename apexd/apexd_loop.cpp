@@ -15,6 +15,7 @@
  */
 
 #define LOG_TAG "apexd"
+#define ATRACE_TAG ATRACE_TAG_PACKAGE_MANAGER
 
 #include "apexd_loop.h"
 
@@ -36,6 +37,7 @@
 #include <android-base/properties.h>
 #include <android-base/stringprintf.h>
 #include <android-base/strings.h>
+#include <utils/Trace.h>
 
 #include "apexd_utils.h"
 #include "string_log.h"
@@ -304,6 +306,7 @@ Result<LoopbackDeviceUniqueFd> WaitForDevice(int num) {
 Result<LoopbackDeviceUniqueFd> CreateLoopDevice(const std::string& target,
                                                 const int32_t image_offset,
                                                 const size_t image_size) {
+  ATRACE_NAME("CreateLoopDevice");
   unique_fd ctl_fd(open("/dev/loop-control", O_RDWR | O_CLOEXEC));
   if (ctl_fd.get() == -1) {
     return ErrnoError() << "Failed to open loop-control";
