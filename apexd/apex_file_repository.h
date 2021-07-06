@@ -65,7 +65,7 @@ class ApexFileRepository final {
   // virtual disk image which has partitions: (see
   // /packages/modules/Virtualization/microdroid for the details)
   //  - metadata partition(/dev/block/vd*1) should be accessed via
-  //  /dev/block/by-name/metadata.
+  //  /dev/block/by-name/payload-metadata.
   //  - each subsequence partition(/dev/block/vd*{2,3,..}) represents an APEX
   //  archive.
   // It will fail if there is more than one apex with the same name in
