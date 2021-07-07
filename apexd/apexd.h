@@ -48,7 +48,7 @@ struct ApexdConfig {
   const char* apex_hash_tree_dir;
   const char* staged_session_dir;
   // Overrides the path to the "metadata" partition which is by default
-  // /dev/block/by-name/metadata It should be a path pointing the first
+  // /dev/block/by-name/payload-metadata It should be a path pointing the first
   // partition of the VM payload disk. So, realpath() of this path is checked if
   // it has the suffix "1". For example, /test-dir/test-metadata-1 can be valid
   // and the subsequent numbers should point APEX files.

@@ -68,7 +68,7 @@ static constexpr const char* kApexStatusActivated = "activated";
 static constexpr const char* kApexStatusReady = "ready";
 
 static constexpr const char* kVmPayloadMetadataPartition =
-    "/dev/block/by-name/metadata";
+    "/dev/block/by-name/payload-metadata";
 
 // Banned APEX names
 static const std::unordered_set<std::string> kBannedApexName = {
