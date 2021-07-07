@@ -98,8 +98,10 @@ class ApexdUnitTest : public ::testing::Test {
     ota_reserved_dir_ = StringPrintf("%s/ota-reserved", td_.path);
     hash_tree_dir_ = StringPrintf("%s/apex-hash-tree", td_.path);
     staged_session_dir_ = StringPrintf("%s/staged-session-dir", td_.path);
-    vm_payload_metadata_path_ =
-        StringPrintf("%s/vm-payload-1", td_.path);  // should end with 1
+
+    vm_payload_disk_ = StringPrintf("%s/vm-payload", td_.path);
+    vm_payload_metadata_path_ = vm_payload_disk_ + "1";
+
     config_ = {kTestApexdStatusSysprop,     {built_in_dir_},
                data_dir_.c_str(),           decompression_dir_.c_str(),
                ota_reserved_dir_.c_str(),   hash_tree_dir_.c_str(),
@@ -145,7 +147,7 @@ class ApexdUnitTest : public ::testing::Test {
 
   std::string AddBlockApex(const std::string& apex_name,
                            std::optional<std::string> pubkey = std::nullopt) {
-    auto apex_path = StringPrintf("%s/vm-payload-2", td_.path);
+    auto apex_path = vm_payload_disk_ + "2";  // second partition
     auto apex_file = GetTestFile(apex_name);
     WriteMetadata(apex_file, std::move(pubkey));
     // loop_devices_ will be disposed after each test
@@ -216,6 +218,7 @@ class ApexdUnitTest : public ::testing::Test {
   std::string decompression_dir_;
   std::string ota_reserved_dir_;
   std::string hash_tree_dir_;
+  std::string vm_payload_disk_;
   std::string vm_payload_metadata_path_;
   std::string staged_session_dir_;
   ApexdConfig config_;
