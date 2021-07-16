@@ -2002,6 +2002,17 @@ void ScanStagedSessionsDirAndStage() {
       continue;
     }
 
+    // If device supports fs-checkpoint, then apex session should only be
+    // installed when in checkpoint-mode. Otherwise, we will not be able to
+    // revert /data on error.
+    if (gSupportsFsCheckpoints && !gInFsCheckpointMode) {
+      auto error_message =
+          "Cannot install apex session if not in fs-checkpoint mode";
+      LOG(ERROR) << error_message;
+      session.SetErrorMessage(error_message);
+      continue;
+    }
+
     std::vector<std::string> dirs_to_scan;
     if (session.GetChildSessionIds().empty()) {
       dirs_to_scan.push_back(std::string(gConfig->staged_session_dir) +
