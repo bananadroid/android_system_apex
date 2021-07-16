@@ -3664,15 +3664,16 @@ TEST_F(ApexdMountTest, OnBootstrapCreatesEmptyDmDevices) {
   DeviceMapper& dm = DeviceMapper::Instance();
 
   auto cleaner = make_scope_guard([&]() {
-    dm.DeleteDevice("com.android.apex.test_package", 1s);
-    dm.DeleteDevice("com.android.apex.compressed", 1s);
+    dm.DeleteDeviceIfExists("com.android.apex.test_package", 1s);
+    dm.DeleteDeviceIfExists("com.android.apex.compressed", 1s);
   });
 
   ASSERT_EQ(0, OnBootstrap());
 
-  std::string ignored;
-  ASSERT_TRUE(dm.WaitForDevice("com.android.apex.test_package", 1s, &ignored));
-  ASSERT_TRUE(dm.WaitForDevice("com.android.apex.compressed", 1s, &ignored));
+  ASSERT_EQ(dm::DmDeviceState::SUSPENDED,
+            dm.GetState("com.android.apex.test_package"));
+  ASSERT_EQ(dm::DmDeviceState::SUSPENDED,
+            dm.GetState("com.android.apex.compressed"));
 }
 
 }  // namespace apex
