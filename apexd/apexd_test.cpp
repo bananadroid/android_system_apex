@@ -77,17 +77,28 @@ static int64_t GetMTime(const std::string& path) {
 // A very basic mock of CheckpointInterface.
 class MockCheckpointInterface : public CheckpointInterface {
  public:
-  Result<bool> SupportsFsCheckpoints() override { return {}; }
+  Result<bool> SupportsFsCheckpoints() override {
+    return supports_fs_checkpoint_;
+  }
 
-  Result<bool> NeedsCheckpoint() override { return false; }
+  Result<bool> NeedsCheckpoint() override { return needs_checkpoint_; }
 
-  Result<bool> NeedsRollback() override { return false; }
+  Result<bool> NeedsRollback() override { return needs_rollback_; }
 
   Result<void> StartCheckpoint(int32_t num_retries) override { return {}; }
 
   Result<void> AbortChanges(const std::string& msg, bool retry) override {
     return {};
   }
+
+  void SetSupportsCheckpoint(bool value) { supports_fs_checkpoint_ = value; }
+
+  void SetNeedsCheckpoint(bool value) { needs_checkpoint_ = value; }
+
+  void SetNeedsRollback(bool value) { needs_rollback_ = value; }
+
+ private:
+  bool supports_fs_checkpoint_, needs_checkpoint_, needs_rollback_;
 };
 
 static constexpr const char* kTestApexdStatusSysprop = "apexd.status.test";
@@ -3518,6 +3529,51 @@ TEST_F(ApexActivationFailureTests, ActivatePackageImplFails) {
               HasSubstr("Failed to activate packages"));
   ASSERT_THAT(apex_session->GetErrorMessage(),
               HasSubstr("has unexpected SHA512 hash"));
+}
+
+TEST_F(ApexActivationFailureTests,
+       StagedSessionFailsWhenNotInFsCheckpointMode) {
+  MockCheckpointInterface checkpoint_interface;
+  checkpoint_interface.SetSupportsCheckpoint(true);
+  // Need to call InitializeVold before calling OnStart
+  InitializeVold(&checkpoint_interface);
+
+  auto pre_installed_apex = AddPreInstalledApex("apex.apexd_test.apex");
+  auto& instance = ApexFileRepository::GetInstance();
+  ASSERT_RESULT_OK(instance.AddPreInstalledApex({GetBuiltInDir()}));
+
+  auto apex_session = CreateStagedSession("apex.apexd_test.apex", 123);
+  apex_session->UpdateStateAndCommit(SessionState::STAGED);
+
+  UnmountOnTearDown(pre_installed_apex);
+  OnStart();
+
+  apex_session = ApexSession::GetSession(123);
+  ASSERT_EQ(apex_session->GetState(), SessionState::ACTIVATION_FAILED);
+  ASSERT_THAT(
+      apex_session->GetErrorMessage(),
+      HasSubstr("Cannot install apex session if not in fs-checkpoint mode"));
+}
+
+TEST_F(ApexActivationFailureTests, StagedSessionRevertsWhenInFsRollbackMode) {
+  MockCheckpointInterface checkpoint_interface;
+  checkpoint_interface.SetSupportsCheckpoint(true);
+  checkpoint_interface.SetNeedsRollback(true);
+  // Need to call InitializeVold before calling OnStart
+  InitializeVold(&checkpoint_interface);
+
+  auto pre_installed_apex = AddPreInstalledApex("apex.apexd_test.apex");
+  auto& instance = ApexFileRepository::GetInstance();
+  ASSERT_RESULT_OK(instance.AddPreInstalledApex({GetBuiltInDir()}));
+
+  auto apex_session = CreateStagedSession("apex.apexd_test.apex", 123);
+  apex_session->UpdateStateAndCommit(SessionState::STAGED);
+
+  UnmountOnTearDown(pre_installed_apex);
+  OnStart();
+
+  apex_session = ApexSession::GetSession(123);
+  ASSERT_EQ(apex_session->GetState(), SessionState::REVERTED);
 }
 
 }  // namespace apex
