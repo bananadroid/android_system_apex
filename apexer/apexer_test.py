@@ -328,7 +328,7 @@ class ApexerRebuildTest(unittest.TestCase):
             java_toolchain,
             "-Djava.library.path=" + java_dep_lib,
             "-jar", self.host_tools['signapk.jar'],
-            "-a", "4096",
+            "-a", "4096", "--align-file-size",
             os.path.join(get_current_dir(), TEST_X509_KEY),
             os.path.join(get_current_dir(), TEST_PK8_KEY),
             unsigned_apex, fn]
