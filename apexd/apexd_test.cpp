@@ -2583,7 +2583,7 @@ TEST_F(ApexdMountTest,
                                    ApexInfoXmlEq(apex_info_xml_2)));
 }
 
-TEST_F(ApexdMountTest, OnOtaChrootBootstrapFlattenedApex) {
+TEST_F(ApexdMountTest, ActivateFlattenedApex) {
   std::string apex_dir_1 = GetBuiltInDir() + "/com.android.apex.test_package";
   std::string apex_dir_2 = GetBuiltInDir() + "/com.android.apex.test_package_2";
 
@@ -2607,7 +2607,7 @@ TEST_F(ApexdMountTest, OnOtaChrootBootstrapFlattenedApex) {
   write_manifest_fn(apex_dir_1, "com.android.apex.test_package", 2);
   write_manifest_fn(apex_dir_2, "com.android.apex.test_package_2", 1);
 
-  ASSERT_EQ(OnOtaChrootBootstrapFlattenedApex(), 0);
+  ASSERT_EQ(ActivateFlattenedApex(), 0);
 
   auto apex_mounts = GetApexMounts();
   ASSERT_THAT(apex_mounts,

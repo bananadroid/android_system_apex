@@ -3464,8 +3464,8 @@ int OnOtaChrootBootstrap() {
   return 0;
 }
 
-int OnOtaChrootBootstrapFlattenedApex() {
-  LOG(INFO) << "OnOtaChrootBootstrapFlattenedApex";
+int ActivateFlattenedApex() {
+  LOG(INFO) << "ActivateFlattenedApex";
 
   std::vector<com::android::apex::ApexInfo> apex_infos;
 
