@@ -57,6 +57,7 @@ using android::base::StringPrintf;
 using android::base::unique_fd;
 using android::base::WriteStringToFile;
 using android::dm::DeviceMapper;
+using ::apex::proto::SessionState;
 using com::android::apex::testing::ApexInfoXmlEq;
 using ::testing::ByRef;
 using ::testing::HasSubstr;
