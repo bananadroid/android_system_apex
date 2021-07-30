@@ -43,19 +43,9 @@
 
 #include "com_android_apex.h"
 
-using android::base::Error;
-using android::base::Result;
-using apex::proto::SessionState;
-
 namespace android {
 namespace apex {
 namespace testing {
-
-using ::testing::AllOf;
-using ::testing::Eq;
-using ::testing::ExplainMatchResult;
-using ::testing::Field;
-using ::testing::Property;
 
 template <typename T>
 inline ::testing::AssertionResult IsOk(const android::base::Result<T>& result) {
@@ -76,6 +66,10 @@ inline ::testing::AssertionResult IsOk(const android::binder::Status& status) {
 }
 
 MATCHER_P(SessionInfoEq, other, "") {
+  using ::testing::AllOf;
+  using ::testing::Eq;
+  using ::testing::Field;
+
   return ExplainMatchResult(
       AllOf(
           Field("sessionId", &ApexSessionInfo::sessionId, Eq(other.sessionId)),
@@ -98,6 +92,10 @@ MATCHER_P(SessionInfoEq, other, "") {
 }
 
 MATCHER_P(ApexInfoEq, other, "") {
+  using ::testing::AllOf;
+  using ::testing::Eq;
+  using ::testing::Field;
+
   return ExplainMatchResult(
       AllOf(Field("moduleName", &ApexInfo::moduleName, Eq(other.moduleName)),
             Field("modulePath", &ApexInfo::modulePath, Eq(other.modulePath)),
@@ -110,6 +108,10 @@ MATCHER_P(ApexInfoEq, other, "") {
 }
 
 MATCHER_P(ApexFileEq, other, "") {
+  using ::testing::AllOf;
+  using ::testing::Eq;
+  using ::testing::Property;
+
   return ExplainMatchResult(
       AllOf(Property("path", &ApexFile::GetPath, Eq(other.get().GetPath())),
             Property("image_offset", &ApexFile::GetImageOffset,
@@ -168,13 +170,13 @@ inline void PrintTo(const ApexInfo& apex, std::ostream* os) {
   *os << "}";
 }
 
-inline Result<bool> CompareFiles(const std::string& filename1,
-                                 const std::string& filename2) {
+inline android::base::Result<bool> CompareFiles(const std::string& filename1,
+                                                const std::string& filename2) {
   std::ifstream file1(filename1, std::ios::binary);
   std::ifstream file2(filename2, std::ios::binary);
 
   if (file1.bad() || file2.bad()) {
-    return Error() << "Could not open one of the file";
+    return android::base::Error() << "Could not open one of the file";
   }
 
   std::istreambuf_iterator<char> begin1(file1);
@@ -301,7 +303,7 @@ inline android::base::Result<void> SetUpApexTestEnvironment() {
   // Just in case, run restorecon -R on /apex.
   if (selinux_android_restorecon("/apex", SELINUX_ANDROID_RESTORECON_RECURSE) <
       0) {
-    return android::base::ErrnoError() << "Failed to restorecon /apex";
+    return ErrnoError() << "Failed to restorecon /apex";
   }
 
   return {};
