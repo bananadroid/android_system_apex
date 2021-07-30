@@ -75,8 +75,10 @@ using android::apex::testing::IsOk;
 using android::apex::testing::SessionInfoEq;
 using android::base::EndsWith;
 using android::base::ErrnoError;
+using android::base::Error;
 using android::base::Join;
 using android::base::ReadFully;
+using android::base::Result;
 using android::base::StartsWith;
 using android::base::StringPrintf;
 using android::base::unique_fd;
@@ -85,6 +87,7 @@ using android::fs_mgr::Fstab;
 using android::fs_mgr::GetEntryForMountPoint;
 using android::fs_mgr::ReadFstabFromFile;
 using ::apex::proto::ApexManifest;
+using ::apex::proto::SessionState;
 using ::testing::Contains;
 using ::testing::EndsWith;
 using ::testing::HasSubstr;
@@ -2537,7 +2540,7 @@ TEST_F(ApexServiceRevertTest, RevertStoresCrashingNativeProcess) {
 static pid_t GetPidOf(const std::string& name) {
   char buf[1024];
   const std::string cmd = std::string("pidof -s ") + name;
-  FILE* cmd_pipe = popen(cmd.c_str(), "r");
+  FILE* cmd_pipe = popen(cmd.c_str(), "r");  // NOLINT(cert-env33-c): test code
   if (cmd_pipe == nullptr) {
     PLOG(ERROR) << "Cannot open pipe for " << cmd;
     return 0;
@@ -3082,7 +3085,7 @@ TEST_F(ApexServiceTestForCompressedApex, CalculateSizeForCompressedApex) {
     CompressedApexInfoList empty_list;
     ASSERT_TRUE(
         IsOk(service_->calculateSizeForCompressedApex(empty_list, &result)));
-    ASSERT_EQ(result, 0ll);
+    ASSERT_EQ(result, 0LL);
   }
 
   // Multiple compressed APEX should get summed
@@ -3100,7 +3103,7 @@ TEST_F(ApexServiceTestForCompressedApex, CalculateSizeForCompressedApex) {
     non_empty_list.apexInfos.push_back(compressed_apex_higher_version);
     ASSERT_TRUE(IsOk(
         service_->calculateSizeForCompressedApex(non_empty_list, &result)));
-    ASSERT_EQ(result, 11ll);  // 1+2+8. compressed_apex_same_version is ignored
+    ASSERT_EQ(result, 11LL);  // 1+2+8. compressed_apex_same_version is ignored
   }
 }
 
@@ -3123,7 +3126,7 @@ TEST_F(ApexServiceTestForCompressedApex, ReserveSpaceForCompressedApex) {
     ASSERT_TRUE(IsOk(service_->calculateSizeForCompressedApex(non_empty_list,
                                                               &required_size)));
     ASSERT_EQ(required_size,
-              11ll);  // 1+2+8. compressed_apex_same_version is ignored
+              11LL);  // 1+2+8. compressed_apex_same_version is ignored
 
     ASSERT_TRUE(IsOk(service_->reserveSpaceForCompressedApex(non_empty_list)));
     auto files = ReadDir(kOtaReservedDir, [](auto _) { return true; });
