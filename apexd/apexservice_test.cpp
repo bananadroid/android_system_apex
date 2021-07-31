@@ -102,7 +102,15 @@ namespace fs = std::filesystem;
 
 class ApexServiceTest : public ::testing::Test {
  public:
-  ApexServiceTest() {
+  ApexServiceTest() {}
+
+ protected:
+  void SetUp() override {
+    // TODO(b/136647373): Move this check to environment setup
+    if (!android::base::GetBoolProperty("ro.apex.updatable", false)) {
+      GTEST_SKIP() << "Skipping test because device doesn't support APEX";
+    }
+
     using android::IBinder;
     using android::IServiceManager;
 
@@ -115,14 +123,7 @@ class ApexServiceTest : public ::testing::Test {
     if (binder != nullptr) {
       vold_service_ = android::interface_cast<android::os::IVold>(binder);
     }
-  }
 
- protected:
-  void SetUp() override {
-    // TODO(b/136647373): Move this check to environment setup
-    if (!android::base::GetBoolProperty("ro.apex.updatable", false)) {
-      GTEST_SKIP() << "Skipping test because device doesn't support APEX";
-    }
     ASSERT_NE(nullptr, service_.get());
     ASSERT_NE(nullptr, vold_service_.get());
     android::binder::Status status =
