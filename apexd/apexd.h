@@ -90,6 +90,9 @@ android::base::Result<std::vector<ApexFile>> SubmitStagedSession(
     const int session_id, const std::vector<int>& child_session_ids,
     const bool has_rollback_enabled, const bool is_rollback,
     const int rollback_id) WARN_UNUSED;
+android::base::Result<std::vector<ApexFile>> GetStagedApexFiles(
+    const int session_id,
+    const std::vector<int>& child_session_ids) WARN_UNUSED;
 android::base::Result<void> MarkStagedSessionReady(const int session_id)
     WARN_UNUSED;
 android::base::Result<void> MarkStagedSessionSuccessful(const int session_id)
