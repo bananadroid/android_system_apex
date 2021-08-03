@@ -79,6 +79,8 @@ class ApexService : public BnApexService {
   BinderStatus getSessions(std::vector<ApexSessionInfo>* aidl_return) override;
   BinderStatus getStagedSessionInfo(
       int session_id, ApexSessionInfo* apex_session_info) override;
+  BinderStatus getStagedApexInfos(const ApexSessionParams& params,
+                                  std::vector<ApexInfo>* aidl_return) override;
   BinderStatus activatePackage(const std::string& package_path) override;
   BinderStatus deactivatePackage(const std::string& package_path) override;
   BinderStatus getActivePackages(std::vector<ApexInfo>* aidl_return) override;
@@ -368,6 +370,29 @@ BinderStatus ApexService::getStagedSessionInfo(
   }
 
   ConvertToApexSessionInfo(*session, apex_session_info);
+
+  return BinderStatus::ok();
+}
+
+BinderStatus ApexService::getStagedApexInfos(
+    const ApexSessionParams& params, std::vector<ApexInfo>* aidl_return) {
+  LOG(DEBUG) << "getStagedApexInfos() received by ApexService, session id "
+             << params.sessionId << " child sessions: ["
+             << android::base::Join(params.childSessionIds, ',') << "]";
+  Result<std::vector<ApexFile>> files = ::android::apex::GetStagedApexFiles(
+      params.sessionId, params.childSessionIds);
+  if (!files.ok()) {
+    LOG(ERROR) << "Failed to getStagedApexInfo session id " << params.sessionId
+               << ": " << files.error();
+    return BinderStatus::fromExceptionCode(
+        BinderStatus::EX_SERVICE_SPECIFIC,
+        String8(files.error().message().c_str()));
+  }
+
+  for (const auto& apex_file : *files) {
+    ApexInfo apex_info = GetApexInfo(apex_file);
+    aidl_return->push_back(std::move(apex_info));
+  }
 
   return BinderStatus::ok();
 }
