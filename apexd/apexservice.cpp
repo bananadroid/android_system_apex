@@ -231,15 +231,15 @@ BinderStatus ApexService::markBootCompleted() {
 BinderStatus ApexService::calculateSizeForCompressedApex(
     const CompressedApexInfoList& compressed_apex_info_list,
     int64_t* required_size) {
-  *required_size = 0;
-  const auto& instance = ApexFileRepository::GetInstance();
+  std::vector<std::tuple<std::string, int64_t, int64_t>> compressed_apexes;
+  compressed_apexes.reserve(compressed_apex_info_list.apexInfos.size());
   for (const auto& apex_info : compressed_apex_info_list.apexInfos) {
-    auto should_allocate_space = ShouldAllocateSpaceForDecompression(
-        apex_info.moduleName, apex_info.versionCode, instance);
-    if (!should_allocate_space.ok() || *should_allocate_space) {
-      *required_size += apex_info.decompressedSize;
-    }
+    compressed_apexes.emplace_back(apex_info.moduleName, apex_info.versionCode,
+                                   apex_info.decompressedSize);
   }
+  const auto& instance = ApexFileRepository::GetInstance();
+  *required_size = ::android::apex::CalculateSizeForCompressedApex(
+      compressed_apexes, instance);
   return BinderStatus::ok();
 }
 

@@ -3192,9 +3192,9 @@ Result<void> RemountPackages() {
 }
 
 // Given a single new APEX incoming via OTA, should we allocate space for it?
-Result<bool> ShouldAllocateSpaceForDecompression(
-    const std::string& new_apex_name, const int64_t new_apex_version,
-    const ApexFileRepository& instance) {
+bool ShouldAllocateSpaceForDecompression(const std::string& new_apex_name,
+                                         const int64_t new_apex_version,
+                                         const ApexFileRepository& instance) {
   // An apex at most will have two versions on device: pre-installed and data.
 
   // Check if there is a pre-installed version for the new apex.
@@ -3231,6 +3231,24 @@ Result<bool> ShouldAllocateSpaceForDecompression(
   const int64_t data_version = data_apex.get().GetManifest().version();
   // We only decompress the new_apex if it has higher version than data apex.
   return new_apex_version > data_version;
+}
+
+int64_t CalculateSizeForCompressedApex(
+    const std::vector<std::tuple<std::string, int64_t, int64_t>>&
+        compressed_apexes,
+    const ApexFileRepository& instance) {
+  int64_t result = 0;
+  for (const auto& compressed_apex : compressed_apexes) {
+    std::string module_name;
+    int64_t version_code;
+    int64_t decompressed_size;
+    std::tie(module_name, version_code, decompressed_size) = compressed_apex;
+    if (ShouldAllocateSpaceForDecompression(module_name, version_code,
+                                            instance)) {
+      result += decompressed_size;
+    }
+  }
+  return result;
 }
 
 void CollectApexInfoList(std::ostream& os,
