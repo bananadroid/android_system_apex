@@ -54,8 +54,10 @@ using android::apex::testing::IsOk;
 using android::base::GetExecutableDirectory;
 using android::base::GetProperty;
 using android::base::make_scope_guard;
+using android::base::ReadFileToString;
 using android::base::RemoveFileIfExists;
 using android::base::Result;
+using android::base::Split;
 using android::base::StringPrintf;
 using android::base::unique_fd;
 using android::base::WriteStringToFile;
@@ -66,6 +68,7 @@ using android::dm::DeviceMapper;
 using ::apex::proto::SessionState;
 using com::android::apex::testing::ApexInfoXmlEq;
 using ::testing::ByRef;
+using ::testing::Contains;
 using ::testing::HasSubstr;
 using ::testing::IsEmpty;
 using ::testing::StartsWith;
@@ -1366,6 +1369,39 @@ TEST_F(ApexdMountTest, InstallPackageUpdatesApexInfoList) {
               UnorderedElementsAre(ApexInfoXmlEq(apex_info_xml_1),
                                    ApexInfoXmlEq(apex_info_xml_2),
                                    ApexInfoXmlEq(apex_info_xml_3)));
+}
+
+TEST_F(ApexdMountTest, ActivatePackageBannedName) {
+  auto status = ActivatePackage(GetTestFile("sharedlibs.apex"));
+  ASSERT_THAT(status,
+              HasError(WithMessage("Package name sharedlibs is not allowed.")));
+}
+
+TEST_F(ApexdMountTest, ActivatePackageNoCode) {
+  std::string file_path = AddPreInstalledApex("apex.apexd_test_nocode.apex");
+  ApexFileRepository::GetInstance().AddPreInstalledApex({GetBuiltInDir()});
+
+  ASSERT_TRUE(IsOk(ActivatePackage(file_path)));
+  UnmountOnTearDown(file_path);
+
+  std::string mountinfo;
+  ASSERT_TRUE(ReadFileToString("/proc/self/mountinfo", &mountinfo));
+  bool found_apex_mountpoint = false;
+  for (const auto& line : Split(mountinfo, "\n")) {
+    std::vector<std::string> tokens = Split(line, " ");
+    // line format:
+    // mnt_id parent_mnt_id major:minor source target option propagation_type
+    // ex) 33 260:19 / /apex rw,nosuid,nodev -
+    if (tokens.size() >= 7 &&
+        tokens[4] == "/apex/com.android.apex.test_package@1") {
+      found_apex_mountpoint = true;
+      // Make sure that option contains noexec
+      std::vector<std::string> options = Split(tokens[5], ",");
+      EXPECT_THAT(options, Contains("noexec"));
+      break;
+    }
+  }
+  EXPECT_TRUE(found_apex_mountpoint);
 }
 
 TEST_F(ApexdMountTest, ActivatePackage) {
