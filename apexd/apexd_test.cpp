@@ -16,6 +16,7 @@
 
 #include <optional>
 #include <string>
+#include <tuple>
 #include <vector>
 
 #include <android-base/file.h>
@@ -563,10 +564,9 @@ TEST_F(ApexdUnitTest, ShouldAllocateSpaceForDecompressionNewApex) {
   ASSERT_TRUE(IsOk(instance.AddPreInstalledApex({GetBuiltInDir()})));
 
   // A brand new compressed APEX is being introduced: selected
-  auto result =
+  bool result =
       ShouldAllocateSpaceForDecompression("com.android.brand.new", 1, instance);
-  ASSERT_TRUE(IsOk(result));
-  ASSERT_TRUE(*result);
+  ASSERT_TRUE(result);
 }
 
 TEST_F(ApexdUnitTest,
@@ -578,10 +578,9 @@ TEST_F(ApexdUnitTest,
 
   // An existing pre-installed APEX is now compressed in the OTA: selected
   {
-    auto result = ShouldAllocateSpaceForDecompression(
+    bool result = ShouldAllocateSpaceForDecompression(
         "com.android.apex.test_package", 1, instance);
-    ASSERT_TRUE(IsOk(result));
-    ASSERT_TRUE(*result);
+    ASSERT_TRUE(result);
   }
 
   // Even if there is a data apex (lower version)
@@ -589,18 +588,16 @@ TEST_F(ApexdUnitTest,
   AddDataApex("apex.apexd_test_v2.apex");
   ASSERT_TRUE(IsOk(instance.AddDataApex(GetDataDir())));
   {
-    auto result = ShouldAllocateSpaceForDecompression(
+    bool result = ShouldAllocateSpaceForDecompression(
         "com.android.apex.test_package", 3, instance);
-    ASSERT_TRUE(IsOk(result));
-    ASSERT_TRUE(*result);
+    ASSERT_TRUE(result);
   }
 
   // But not if data apex has equal or higher version
   {
-    auto result = ShouldAllocateSpaceForDecompression(
+    bool result = ShouldAllocateSpaceForDecompression(
         "com.android.apex.test_package", 2, instance);
-    ASSERT_TRUE(IsOk(result));
-    ASSERT_FALSE(*result);
+    ASSERT_FALSE(result);
   }
 }
 
@@ -614,10 +611,9 @@ TEST_F(ApexdUnitTest, ShouldAllocateSpaceForDecompressionVersionCompare) {
   {
     // New Compressed apex has higher version than decompressed data apex:
     // selected
-    auto result = ShouldAllocateSpaceForDecompression(
+    bool result = ShouldAllocateSpaceForDecompression(
         "com.android.apex.compressed", 2, instance);
-    ASSERT_TRUE(IsOk(result));
-    ASSERT_TRUE(*result)
+    ASSERT_TRUE(result)
         << "Higher version test with decompressed data returned false";
   }
 
@@ -625,20 +621,18 @@ TEST_F(ApexdUnitTest, ShouldAllocateSpaceForDecompressionVersionCompare) {
   {
     // New Compressed apex has same version as decompressed data apex: not
     // selected
-    auto result = ShouldAllocateSpaceForDecompression(
+    bool result = ShouldAllocateSpaceForDecompression(
         "com.android.apex.compressed", 1, instance);
-    ASSERT_TRUE(IsOk(result));
-    ASSERT_FALSE(*result)
+    ASSERT_FALSE(result)
         << "Same version test with decompressed data returned true";
   }
 
   {
     // New Compressed apex has lower version than decompressed data apex:
     // selected
-    auto result = ShouldAllocateSpaceForDecompression(
+    bool result = ShouldAllocateSpaceForDecompression(
         "com.android.apex.compressed", 0, instance);
-    ASSERT_TRUE(IsOk(result));
-    ASSERT_TRUE(*result)
+    ASSERT_TRUE(result)
         << "lower version test with decompressed data returned false";
   }
 
@@ -652,27 +646,45 @@ TEST_F(ApexdUnitTest, ShouldAllocateSpaceForDecompressionVersionCompare) {
 
   {
     // New Compressed apex has higher version as data apex: selected
-    auto result = ShouldAllocateSpaceForDecompression(
+    bool result = ShouldAllocateSpaceForDecompression(
         "com.android.apex.compressed", 3, instance_new);
-    ASSERT_TRUE(IsOk(result));
-    ASSERT_TRUE(*result) << "Higher version test with new data returned false";
+    ASSERT_TRUE(result) << "Higher version test with new data returned false";
   }
 
   {
     // New Compressed apex has same version as data apex: not selected
-    auto result = ShouldAllocateSpaceForDecompression(
+    bool result = ShouldAllocateSpaceForDecompression(
         "com.android.apex.compressed", 2, instance_new);
-    ASSERT_TRUE(IsOk(result));
-    ASSERT_FALSE(*result) << "Same version test with new data returned true";
+    ASSERT_FALSE(result) << "Same version test with new data returned true";
   }
 
   {
     // New Compressed apex has lower version than data apex: not selected
-    auto result = ShouldAllocateSpaceForDecompression(
+    bool result = ShouldAllocateSpaceForDecompression(
         "com.android.apex.compressed", 1, instance_new);
-    ASSERT_TRUE(IsOk(result));
-    ASSERT_FALSE(*result) << "lower version test with new data returned true";
+    ASSERT_FALSE(result) << "lower version test with new data returned true";
   }
+}
+
+TEST_F(ApexdUnitTest, CalculateSizeForCompressedApexEmptyList) {
+  ApexFileRepository instance;
+  int64_t result = CalculateSizeForCompressedApex({}, instance);
+  ASSERT_EQ(0LL, result);
+}
+
+TEST_F(ApexdUnitTest, CalculateSizeForCompressedApex) {
+  ApexFileRepository instance;
+  AddPreInstalledApex("com.android.apex.compressed.v1.capex");
+  ASSERT_THAT(instance.AddPreInstalledApex({GetBuiltInDir()}), Ok());
+
+  std::vector<std::tuple<std::string, int64_t, int64_t>> input = {
+      std::make_tuple("new_apex", 1, 1),
+      std::make_tuple("new_apex_2", 1, 2),
+      std::make_tuple("com.android.apex.compressed", 1, 4),  // will be ignored
+      std::make_tuple("com.android.apex.compressed", 2, 8),
+  };
+  int64_t result = CalculateSizeForCompressedApex(input, instance);
+  ASSERT_EQ(1 + 2 + 8LL, result);
 }
 
 TEST_F(ApexdUnitTest, ReserveSpaceForCompressedApexCreatesSingleFile) {
