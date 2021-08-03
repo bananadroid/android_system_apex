@@ -1412,6 +1412,46 @@ Result<void> DeactivatePackage(const std::string& full_path) {
                         /* deferred= */ false);
 }
 
+Result<std::vector<ApexFile>> GetStagedApexFiles(
+    int session_id, const std::vector<int>& child_session_ids) {
+  auto session = ApexSession::GetSession(session_id);
+  if (!session.ok()) {
+    return session.error();
+  }
+  // We should only accept sessions in SessionState::STAGED state
+  auto session_state = (*session).GetState();
+  if (session_state != SessionState::STAGED) {
+    return Error() << "Session " << session_id << " is not in state STAGED";
+  }
+
+  std::vector<int> ids_to_scan;
+  if (!child_session_ids.empty()) {
+    ids_to_scan = child_session_ids;
+  } else {
+    ids_to_scan = {session_id};
+  }
+
+  // Find apex files in the staging directory
+  std::vector<std::string> apex_file_paths;
+  for (int id_to_scan : ids_to_scan) {
+    std::string session_dir_path = std::string(gConfig->staged_session_dir) +
+                                   "/session_" + std::to_string(id_to_scan);
+    Result<std::vector<std::string>> scan =
+        FindFilesBySuffix(session_dir_path, {kApexPackageSuffix});
+    if (!scan.ok()) {
+      return scan.error();
+    }
+    if (scan->size() != 1) {
+      return Error() << "Expected exactly one APEX file in directory "
+                     << session_dir_path << ". Found: " << scan->size();
+    }
+    std::string& apex_file_path = (*scan)[0];
+    apex_file_paths.push_back(std::move(apex_file_path));
+  }
+
+  return OpenApexFiles(apex_file_paths);
+}
+
 std::vector<ApexFile> GetActivePackages() {
   std::vector<ApexFile> ret;
   gMountedApexes.ForallMountedApexes(

@@ -786,6 +786,84 @@ TEST_F(ApexdUnitTest, ReserveSpaceForCompressedApexErrorForNegativeValue) {
   ASSERT_FALSE(IsOk(ReserveSpaceForCompressedApex(-1, dest_dir.path)));
 }
 
+TEST_F(ApexdUnitTest, GetStagedApexFilesNoChild) {
+  // Create staged session
+  auto apex_session = CreateStagedSession("apex.apexd_test.apex", 123);
+  apex_session->UpdateStateAndCommit(SessionState::STAGED);
+
+  // Query for its file
+  auto result = GetStagedApexFiles(123, {});
+
+  ASSERT_RESULT_OK(result);
+  auto apex_file = ApexFile::Open(
+      StringPrintf("%s/apex.apexd_test.apex", GetStagedDir(123).c_str()));
+  ASSERT_THAT(*result, UnorderedElementsAre(ApexFileEq(ByRef(*apex_file))));
+}
+
+TEST_F(ApexdUnitTest, GetStagedApexFilesOnlyStaged) {
+  // Create staged session
+  auto apex_session = CreateStagedSession("apex.apexd_test.apex", 123);
+  apex_session->UpdateStateAndCommit(SessionState::VERIFIED);
+
+  // Query for its file
+  auto result = GetStagedApexFiles(123, {});
+
+  ASSERT_FALSE(IsOk(result));
+  ASSERT_THAT(result.error().message(),
+              HasSubstr("Session 123 is not in state STAGED"));
+}
+
+TEST_F(ApexdUnitTest, GetStagedApexFilesChecksNumberOfApexFiles) {
+  // Create staged session
+  auto apex_session = CreateStagedSession("apex.apexd_test.apex", 123);
+  apex_session->UpdateStateAndCommit(SessionState::STAGED);
+  auto staged_dir = GetStagedDir(123);
+
+  {
+    // Delete the staged apex file
+    DeleteDirContent(staged_dir);
+
+    // Query for its file
+    auto result = GetStagedApexFiles(123, {});
+    ASSERT_FALSE(IsOk(result));
+    ASSERT_THAT(result.error().message(),
+                HasSubstr("Expected exactly one APEX file in directory"));
+    ASSERT_THAT(result.error().message(), HasSubstr("Found: 0"));
+  }
+  {
+    // Copy multiple files to staged dir
+    fs::copy(GetTestFile("apex.apexd_test.apex"), staged_dir);
+    fs::copy(GetTestFile("apex.apexd_test_v2.apex"), staged_dir);
+
+    // Query for its file
+    auto result = GetStagedApexFiles(123, {});
+    ASSERT_FALSE(IsOk(result));
+    ASSERT_THAT(result.error().message(),
+                HasSubstr("Expected exactly one APEX file in directory"));
+    ASSERT_THAT(result.error().message(), HasSubstr("Found: 2"));
+  }
+}
+
+TEST_F(ApexdUnitTest, GetStagedApexFilesWithChildren) {
+  // Create staged session
+  auto parent_apex_session = CreateStagedSession("apex.apexd_test.apex", 123);
+  parent_apex_session->UpdateStateAndCommit(SessionState::STAGED);
+  auto child_session_1 = CreateStagedSession("apex.apexd_test.apex", 124);
+  auto child_session_2 = CreateStagedSession("apex.apexd_test.apex", 125);
+
+  // Query for its file
+  auto result = GetStagedApexFiles(123, {124, 125});
+
+  ASSERT_RESULT_OK(result);
+  auto child_apex_file_1 = ApexFile::Open(
+      StringPrintf("%s/apex.apexd_test.apex", GetStagedDir(124).c_str()));
+  auto child_apex_file_2 = ApexFile::Open(
+      StringPrintf("%s/apex.apexd_test.apex", GetStagedDir(125).c_str()));
+  ASSERT_THAT(*result,
+              UnorderedElementsAre(ApexFileEq(ByRef(*child_apex_file_1)),
+                                   ApexFileEq(ByRef(*child_apex_file_2))));
+}
+
 // A test fixture to use for tests that mount/unmount apexes.
 class ApexdMountTest : public ApexdUnitTest {
  public:
