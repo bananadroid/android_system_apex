@@ -29,6 +29,7 @@ interface IApexService {
 
    ApexSessionInfo[] getSessions();
    ApexSessionInfo getStagedSessionInfo(int session_id);
+   ApexInfo[] getStagedApexInfos(in ApexSessionParams params);
    ApexInfo[] getActivePackages();
    ApexInfo[] getAllPackages();
 
