@@ -20,12 +20,14 @@
 
 #include <android-base/file.h>
 #include <android-base/properties.h>
+#include <android-base/result-gmock.h>
 #include <android-base/scopeguard.h>
 #include <android-base/stringprintf.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <libdm/dm.h>
 #include <microdroid/metadata.h>
+#include <sys/stat.h>
 
 #include "apex_database.h"
 #include "apex_file_repository.h"
@@ -56,6 +58,9 @@ using android::base::Result;
 using android::base::StringPrintf;
 using android::base::unique_fd;
 using android::base::WriteStringToFile;
+using android::base::testing::HasError;
+using android::base::testing::Ok;
+using android::base::testing::WithMessage;
 using android::dm::DeviceMapper;
 using ::apex::proto::SessionState;
 using com::android::apex::testing::ApexInfoXmlEq;
@@ -3754,6 +3759,120 @@ TEST_F(ApexdMountTest, OnBootstrapCreatesEmptyDmDevices) {
             dm.GetState("com.android.apex.test_package"));
   ASSERT_EQ(dm::DmDeviceState::SUSPENDED,
             dm.GetState("com.android.apex.compressed"));
+}
+
+TEST_F(ApexdUnitTest, StagePackagesFailKey) {
+  auto status =
+      StagePackages({GetTestFile("apex.apexd_test_no_inst_key.apex")});
+
+  ASSERT_THAT(
+      status,
+      HasError(WithMessage(("No preinstalled apex found for package "
+                            "com.android.apex.test_package.no_inst_key"))));
+}
+
+TEST_F(ApexdUnitTest, StagePackagesSuccess) {
+  AddPreInstalledApex("apex.apexd_test.apex");
+  auto& instance = ApexFileRepository::GetInstance();
+  ASSERT_THAT(instance.AddPreInstalledApex({GetBuiltInDir()}), Ok());
+
+  auto status = StagePackages({GetTestFile("apex.apexd_test.apex")});
+  ASSERT_THAT(status, Ok());
+
+  auto staged_path = StringPrintf("%s/com.android.apex.test_package@1.apex",
+                                  GetDataDir().c_str());
+  ASSERT_EQ(0, access(staged_path.c_str(), F_OK));
+}
+
+TEST_F(ApexdUnitTest, StagePackagesClearsPreviouslyActivePackage) {
+  AddPreInstalledApex("apex.apexd_test.apex");
+  auto& instance = ApexFileRepository::GetInstance();
+  ASSERT_THAT(instance.AddPreInstalledApex({GetBuiltInDir()}), Ok());
+
+  auto current_apex = AddDataApex("apex.apexd_test.apex");
+  ASSERT_EQ(0, access(current_apex.c_str(), F_OK));
+
+  auto status = StagePackages({GetTestFile("apex.apexd_test_v2.apex")});
+  ASSERT_THAT(status, Ok());
+
+  auto staged_path = StringPrintf("%s/com.android.apex.test_package@2.apex",
+                                  GetDataDir().c_str());
+  ASSERT_EQ(0, access(staged_path.c_str(), F_OK));
+  ASSERT_EQ(-1, access(current_apex.c_str(), F_OK));
+  ASSERT_EQ(ENOENT, errno);
+}
+
+TEST_F(ApexdUnitTest, StagePackagesClearsPreviouslyActivePackageDowngrade) {
+  AddPreInstalledApex("apex.apexd_test.apex");
+  auto& instance = ApexFileRepository::GetInstance();
+  ASSERT_THAT(instance.AddPreInstalledApex({GetBuiltInDir()}), Ok());
+
+  auto current_apex = AddDataApex("apex.apexd_test_v2.apex");
+  ASSERT_EQ(0, access(current_apex.c_str(), F_OK));
+
+  auto status = StagePackages({GetTestFile("apex.apexd_test.apex")});
+  ASSERT_THAT(status, Ok());
+
+  auto staged_path = StringPrintf("%s/com.android.apex.test_package@1.apex",
+                                  GetDataDir().c_str());
+  ASSERT_EQ(0, access(staged_path.c_str(), F_OK));
+  ASSERT_EQ(-1, access(current_apex.c_str(), F_OK));
+  ASSERT_EQ(ENOENT, errno);
+}
+
+TEST_F(ApexdUnitTest, StagePackagesAlreadyStagedPackage) {
+  AddPreInstalledApex("apex.apexd_test.apex");
+  auto& instance = ApexFileRepository::GetInstance();
+  ASSERT_THAT(instance.AddPreInstalledApex({GetBuiltInDir()}), Ok());
+
+  auto status = StagePackages({GetTestFile("apex.apexd_test.apex")});
+  ASSERT_THAT(status, Ok());
+
+  auto staged_path = StringPrintf("%s/com.android.apex.test_package@1.apex",
+                                  GetDataDir().c_str());
+  struct stat stat1;
+  ASSERT_EQ(0, stat(staged_path.c_str(), &stat1));
+  ASSERT_TRUE(S_ISREG(stat1.st_mode));
+
+  {
+    auto apex = ApexFile::Open(staged_path);
+    ASSERT_THAT(apex, Ok());
+    ASSERT_FALSE(apex->GetManifest().nocode());
+  }
+
+  auto status2 = StagePackages({GetTestFile("apex.apexd_test_nocode.apex")});
+  ASSERT_THAT(status2, Ok());
+
+  struct stat stat2;
+  ASSERT_EQ(0, stat(staged_path.c_str(), &stat2));
+  ASSERT_TRUE(S_ISREG(stat2.st_mode));
+
+  ASSERT_NE(stat1.st_ino, stat2.st_ino);
+
+  {
+    auto apex = ApexFile::Open(staged_path);
+    ASSERT_THAT(apex, Ok());
+    ASSERT_TRUE(apex->GetManifest().nocode());
+  }
+}
+
+TEST_F(ApexdUnitTest, StagePackagesMultiplePackages) {
+  AddPreInstalledApex("apex.apexd_test.apex");
+  AddPreInstalledApex("apex.apexd_test_different_app.apex");
+  auto& instance = ApexFileRepository::GetInstance();
+  ASSERT_THAT(instance.AddPreInstalledApex({GetBuiltInDir()}), Ok());
+
+  auto status =
+      StagePackages({GetTestFile("apex.apexd_test_v2.apex"),
+                     GetTestFile("apex.apexd_test_different_app.apex")});
+  ASSERT_THAT(status, Ok());
+
+  auto staged_path1 = StringPrintf("%s/com.android.apex.test_package@2.apex",
+                                   GetDataDir().c_str());
+  auto staged_path2 = StringPrintf("%s/com.android.apex.test_package_2@1.apex",
+                                   GetDataDir().c_str());
+  ASSERT_EQ(0, access(staged_path1.c_str(), F_OK));
+  ASSERT_EQ(0, access(staged_path2.c_str(), F_OK));
 }
 
 }  // namespace apex
