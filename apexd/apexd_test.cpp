@@ -53,6 +53,7 @@ using android::apex::testing::ApexFileEq;
 using android::apex::testing::IsOk;
 using android::base::GetExecutableDirectory;
 using android::base::GetProperty;
+using android::base::Join;
 using android::base::make_scope_guard;
 using android::base::ReadFileToString;
 using android::base::RemoveFileIfExists;
@@ -1482,6 +1483,18 @@ TEST_F(ApexdMountTest, ActivatePackageNoCode) {
   EXPECT_TRUE(found_apex_mountpoint);
 }
 
+TEST_F(ApexdMountTest, ActivatePackageManifestMissmatch) {
+  std::string file_path =
+      AddPreInstalledApex("apex.apexd_test_manifest_mismatch.apex");
+  ApexFileRepository::GetInstance().AddPreInstalledApex({GetBuiltInDir()});
+
+  auto status = ActivatePackage(file_path);
+  ASSERT_THAT(
+      status,
+      HasError(WithMessage(HasSubstr(
+          "Manifest inside filesystem does not match manifest outside it"))));
+}
+
 TEST_F(ApexdMountTest, ActivatePackage) {
   std::string file_path = AddPreInstalledApex("apex.apexd_test.apex");
   ApexFileRepository::GetInstance().AddPreInstalledApex({GetBuiltInDir()});
@@ -1503,6 +1516,131 @@ TEST_F(ApexdMountTest, ActivatePackage) {
 
   auto new_apex_mounts = GetApexMounts();
   ASSERT_EQ(new_apex_mounts.size(), 0u);
+}
+
+TEST_F(ApexdMountTest, ActivatePackageShowsUpInMountedApexDatabase) {
+  std::string file_path = AddPreInstalledApex("apex.apexd_test.apex");
+  ApexFileRepository::GetInstance().AddPreInstalledApex({GetBuiltInDir()});
+
+  ASSERT_TRUE(IsOk(ActivatePackage(file_path)));
+  UnmountOnTearDown(file_path);
+
+  auto active_apex = GetActivePackage("com.android.apex.test_package");
+  ASSERT_TRUE(IsOk(active_apex));
+  ASSERT_EQ(active_apex->GetPath(), file_path);
+
+  auto apex_mounts = GetApexMounts();
+  ASSERT_THAT(apex_mounts,
+              UnorderedElementsAre("/apex/com.android.apex.test_package",
+                                   "/apex/com.android.apex.test_package@1"));
+
+  // Check that mounted apex database contains information about our APEX.
+  auto& db = GetApexDatabaseForTesting();
+  std::optional<MountedApexData> mounted_apex;
+  db.ForallMountedApexes("com.android.apex.test_package",
+                         [&](const MountedApexData& d, bool active) {
+                           if (active) {
+                             mounted_apex.emplace(d);
+                           }
+                         });
+  ASSERT_TRUE(mounted_apex)
+      << "Haven't found com.android.apex.test_package in the database of "
+      << "mounted apexes";
+}
+
+TEST_F(ApexdMountTest, ActivatePackageNoHashtree) {
+  AddPreInstalledApex("apex.apexd_test.apex");
+  ApexFileRepository::GetInstance().AddPreInstalledApex({GetBuiltInDir()});
+
+  std::string file_path = AddDataApex("apex.apexd_test_no_hashtree.apex");
+  ASSERT_THAT(ActivatePackage(file_path), Ok());
+  UnmountOnTearDown(file_path);
+
+  // Check that hashtree was generated
+  std::string hashtree_path =
+      GetHashTreeDir() + "/com.android.apex.test_package@1";
+  ASSERT_EQ(0, access(hashtree_path.c_str(), F_OK));
+
+  // Check that block device can be read.
+  auto block_device = GetBlockDeviceForApex("com.android.apex.test_package@1");
+  ASSERT_THAT(block_device, Ok());
+  ASSERT_THAT(ReadDevice(*block_device), Ok());
+}
+
+TEST_F(ApexdMountTest, ActivatePackageNoHashtreeShowsUpInMountedDatabase) {
+  AddPreInstalledApex("apex.apexd_test.apex");
+  ApexFileRepository::GetInstance().AddPreInstalledApex({GetBuiltInDir()});
+
+  std::string file_path = AddDataApex("apex.apexd_test_no_hashtree.apex");
+  ASSERT_THAT(ActivatePackage(file_path), Ok());
+  UnmountOnTearDown(file_path);
+
+  // Get loop devices that were used to mount APEX.
+  auto children = ListChildLoopDevices("com.android.apex.test_package@1");
+  ASSERT_THAT(children, Ok());
+  ASSERT_EQ(2u, children->size())
+      << "Unexpected number of children: " << Join(*children, ",");
+
+  auto& db = GetApexDatabaseForTesting();
+  std::optional<MountedApexData> mounted_apex;
+  db.ForallMountedApexes("com.android.apex.test_package",
+                         [&](const MountedApexData& d, bool active) {
+                           if (active) {
+                             mounted_apex.emplace(d);
+                           }
+                         });
+  ASSERT_TRUE(mounted_apex)
+      << "Haven't found com.android.apex.test_package@1  in the database of "
+      << "mounted apexes";
+
+  ASSERT_EQ(file_path, mounted_apex->full_path);
+  ASSERT_EQ("/apex/com.android.apex.test_package@1", mounted_apex->mount_point);
+  ASSERT_EQ("com.android.apex.test_package@1", mounted_apex->device_name);
+  // For loops we only check that both loop_name and hashtree_loop_name are
+  // children of the top device mapper device.
+  ASSERT_THAT(*children, Contains(mounted_apex->loop_name));
+  ASSERT_THAT(*children, Contains(mounted_apex->hashtree_loop_name));
+  ASSERT_NE(mounted_apex->loop_name, mounted_apex->hashtree_loop_name);
+}
+
+TEST_F(ApexdMountTest, DeactivePackageFreesLoopDevices) {
+  AddPreInstalledApex("apex.apexd_test.apex");
+  ApexFileRepository::GetInstance().AddPreInstalledApex({GetBuiltInDir()});
+
+  std::string file_path = AddDataApex("apex.apexd_test_no_hashtree.apex");
+  ASSERT_THAT(ActivatePackage(file_path), Ok());
+  UnmountOnTearDown(file_path);
+
+  // Get loop devices that were used to mount APEX.
+  auto children = ListChildLoopDevices("com.android.apex.test_package@1");
+  ASSERT_THAT(children, Ok());
+  ASSERT_EQ(2u, children->size())
+      << "Unexpected number of children: " << Join(*children, ",");
+
+  ASSERT_THAT(DeactivatePackage(file_path), Ok());
+  for (const auto& loop : *children) {
+    struct loop_info li;
+    unique_fd fd(TEMP_FAILURE_RETRY(open(loop.c_str(), O_RDWR | O_CLOEXEC)));
+    EXPECT_NE(-1, fd.get())
+        << "Failed to open " << loop << " : " << strerror(errno);
+    EXPECT_EQ(-1, ioctl(fd.get(), LOOP_GET_STATUS, &li))
+        << loop << " is still alive";
+    EXPECT_EQ(ENXIO, errno) << "Unexpected errno : " << strerror(errno);
+  }
+}
+
+TEST_F(ApexdMountTest, DeactivePackageTearsDownVerityDevice) {
+  AddPreInstalledApex("apex.apexd_test.apex");
+  ApexFileRepository::GetInstance().AddPreInstalledApex({GetBuiltInDir()});
+
+  std::string file_path = AddDataApex("apex.apexd_test_v2.apex");
+  ASSERT_THAT(ActivatePackage(file_path), Ok());
+  UnmountOnTearDown(file_path);
+
+  ASSERT_THAT(DeactivatePackage(file_path), Ok());
+  auto& dm = DeviceMapper::Instance();
+  ASSERT_EQ(dm::DmDeviceState::INVALID,
+            dm.GetState("com.android.apex.test_package@2"));
 }
 
 TEST_F(ApexdMountTest, ActivateDeactivateSharedLibsApex) {

@@ -74,7 +74,6 @@ using android::apex::testing::CreateSessionInfo;
 using android::apex::testing::IsOk;
 using android::apex::testing::SessionInfoEq;
 using android::base::EndsWith;
-using android::base::ErrnoError;
 using android::base::Error;
 using android::base::Join;
 using android::base::ReadFully;
@@ -83,9 +82,6 @@ using android::base::StartsWith;
 using android::base::StringPrintf;
 using android::base::unique_fd;
 using android::dm::DeviceMapper;
-using android::fs_mgr::Fstab;
-using android::fs_mgr::GetEntryForMountPoint;
-using android::fs_mgr::ReadFstabFromFile;
 using ::apex::proto::ApexManifest;
 using ::apex::proto::SessionState;
 using ::testing::Contains;
@@ -504,68 +500,6 @@ Result<std::vector<std::string>> ReadEntireDir(const std::string& path) {
   return ReadDir(path, kAcceptAll);
 }
 
-Result<std::string> GetBlockDeviceForApex(const std::string& package_id) {
-  std::string mount_point = std::string(kApexRoot) + "/" + package_id;
-  Fstab fstab;
-  if (!ReadFstabFromFile("/proc/mounts", &fstab)) {
-    return Error() << "Failed to read /proc/mounts";
-  }
-  auto entry = GetEntryForMountPoint(&fstab, mount_point);
-  if (entry == nullptr) {
-    return Error() << "Can't find " << mount_point << " in /proc/mounts";
-  }
-  return entry->blk_device;
-}
-
-Result<void> ReadDevice(const std::string& block_device) {
-  static constexpr int kBlockSize = 4096;
-  static constexpr size_t kBufSize = 1024 * kBlockSize;
-  std::vector<uint8_t> buffer(kBufSize);
-
-  unique_fd fd(
-      TEMP_FAILURE_RETRY(open(block_device.c_str(), O_RDONLY | O_CLOEXEC)));
-  if (fd.get() == -1) {
-    return ErrnoError() << "Can't open " << block_device;
-  }
-
-  while (true) {
-    int n = read(fd.get(), buffer.data(), kBufSize);
-    if (n < 0) {
-      return ErrnoError() << "Failed to read " << block_device;
-    }
-    if (n == 0) {
-      break;
-    }
-  }
-  return {};
-}
-
-std::vector<std::string> ListSlavesOfDmDevice(const std::string& name) {
-  DeviceMapper& dm = DeviceMapper::Instance();
-  std::string dm_path;
-  EXPECT_TRUE(dm.GetDmDevicePathByName(name, &dm_path))
-      << "Failed to get path of dm device " << name;
-  // It's a little bit sad we can't use ConsumePrefix here :(
-  constexpr std::string_view kDevPrefix = "/dev/";
-  EXPECT_TRUE(StartsWith(dm_path, kDevPrefix)) << "Illegal path " << dm_path;
-  dm_path = dm_path.substr(kDevPrefix.length());
-  std::vector<std::string> slaves;
-  {
-    std::string slaves_dir = "/sys/" + dm_path + "/slaves";
-    auto st = WalkDir(slaves_dir, [&](const auto& entry) {
-      std::error_code ec;
-      if (entry.is_symlink(ec)) {
-        slaves.push_back("/dev/block/" + entry.path().filename().string());
-      }
-      if (ec) {
-        ADD_FAILURE() << "Failed to scan " << slaves_dir << " : " << ec;
-      }
-    });
-    EXPECT_TRUE(IsOk(st));
-  }
-  return slaves;
-}
-
 Result<void> CopyFile(const std::string& from, const std::string& to,
                       const fs::copy_options& options) {
   std::error_code ec;
@@ -912,157 +846,8 @@ struct SuccessNameProvider {
   }
 };
 
-struct ManifestMismatchNameProvider {
-  static std::string GetTestName() {
-    return "apex.apexd_test_manifest_mismatch.apex";
-  }
-  static std::string GetPackageName() {
-    return "com.android.apex.test_package";
-  }
-};
-
-class ApexServiceActivationManifestMismatchFailure
-    : public ApexServiceActivationTest<ManifestMismatchNameProvider> {
- public:
-  ApexServiceActivationManifestMismatchFailure()
-      : ApexServiceActivationTest(false) {}
-};
-
-TEST_F(ApexServiceActivationManifestMismatchFailure,
-       ActivateFailsWithManifestMismatch) {
-  android::binder::Status st = service_->activatePackage(installer_->test_file);
-  ASSERT_FALSE(IsOk(st));
-
-  std::string error = st.exceptionMessage().c_str();
-  ASSERT_THAT(
-      error,
-      HasSubstr(
-          "Manifest inside filesystem does not match manifest outside it"));
-}
-
 class ApexServiceActivationSuccessTest
     : public ApexServiceActivationTest<SuccessNameProvider> {};
-
-TEST_F(ApexServiceActivationSuccessTest, Activate) {
-  ASSERT_TRUE(IsOk(service_->activatePackage(installer_->test_installed_file)))
-      << GetDebugStr(installer_.get());
-
-  {
-    // Check package is active.
-    Result<bool> active = IsActive(installer_->package, installer_->version,
-                                   installer_->test_installed_file);
-    ASSERT_TRUE(IsOk(active));
-    ASSERT_TRUE(*active) << Join(GetActivePackagesStrings(), ',');
-  }
-
-  {
-    // Check that the "latest" view exists.
-    std::string latest_path =
-        std::string(kApexRoot) + "/" + installer_->package;
-    struct stat buf;
-    ASSERT_EQ(0, stat(latest_path.c_str(), &buf)) << strerror(errno);
-    // Check that it is a folder.
-    EXPECT_TRUE(S_ISDIR(buf.st_mode));
-
-    // Collect direct entries of a folder.
-    auto collect_entries_fn = [&](const std::string& path) {
-      std::vector<std::string> ret;
-      auto status = WalkDir(path, [&](const fs::directory_entry& entry) {
-        if (!entry.is_directory()) {
-          return;
-        }
-        ret.emplace_back(entry.path().filename());
-      });
-      CHECK(status.has_value())
-          << "Failed to list " << path << " : " << status.error();
-      std::sort(ret.begin(), ret.end());
-      return ret;
-    };
-
-    std::string versioned_path = std::string(kApexRoot) + "/" +
-                                 installer_->package + "@" +
-                                 std::to_string(installer_->version);
-    std::vector<std::string> versioned_folder_entries =
-        collect_entries_fn(versioned_path);
-    std::vector<std::string> latest_folder_entries =
-        collect_entries_fn(latest_path);
-
-    EXPECT_TRUE(versioned_folder_entries == latest_folder_entries)
-        << "Versioned: " << Join(versioned_folder_entries, ',')
-        << " Latest: " << Join(latest_folder_entries, ',');
-  }
-}
-
-TEST_F(ApexServiceActivationSuccessTest, GetActivePackages) {
-  ASSERT_TRUE(IsOk(service_->activatePackage(installer_->test_installed_file)))
-      << GetDebugStr(installer_.get());
-
-  Result<std::vector<ApexInfo>> active = GetActivePackages();
-  ASSERT_TRUE(IsOk(active));
-  ApexInfo match;
-
-  for (const ApexInfo& info : *active) {
-    if (info.moduleName == installer_->package) {
-      match = info;
-      break;
-    }
-  }
-
-  ASSERT_EQ(installer_->package, match.moduleName);
-  ASSERT_EQ(installer_->version, static_cast<uint64_t>(match.versionCode));
-  ASSERT_EQ(installer_->test_installed_file, match.modulePath);
-}
-
-TEST_F(ApexServiceActivationSuccessTest, GetActivePackage) {
-  ASSERT_TRUE(IsOk(service_->activatePackage(installer_->test_installed_file)))
-      << GetDebugStr(installer_.get());
-
-  Result<ApexInfo> active = GetActivePackage(installer_->package);
-  ASSERT_TRUE(IsOk(active));
-
-  ASSERT_EQ(installer_->package, active->moduleName);
-  ASSERT_EQ(installer_->version, static_cast<uint64_t>(active->versionCode));
-  ASSERT_EQ(installer_->test_installed_file, active->modulePath);
-}
-
-TEST_F(ApexServiceActivationSuccessTest, ShowsUpInMountedApexDatabase) {
-  ASSERT_TRUE(IsOk(service_->activatePackage(installer_->test_installed_file)))
-      << GetDebugStr(installer_.get());
-
-  MountedApexDatabase db;
-  db.PopulateFromMounts(kActiveApexPackagesDataDir, kApexDecompressedDir,
-                        kApexHashTreeDir);
-
-  std::optional<MountedApexData> mounted_apex;
-  db.ForallMountedApexes(installer_->package,
-                         [&](const MountedApexData& d, bool active) {
-                           if (active) {
-                             mounted_apex.emplace(d);
-                           }
-                         });
-  ASSERT_TRUE(mounted_apex)
-      << "Haven't found " << installer_->test_installed_file
-      << " in the database of mounted apexes";
-
-  // Get all necessary data for assertions on mounted_apex.
-  std::string package_id =
-      installer_->package + "@" + std::to_string(installer_->version);
-  DeviceMapper& dm = DeviceMapper::Instance();
-  std::string dm_path;
-  ASSERT_TRUE(dm.GetDmDevicePathByName(package_id, &dm_path))
-      << "Failed to get path of dm device " << package_id;
-  auto loop_device = dm.GetParentBlockDeviceByPath(dm_path);
-  ASSERT_TRUE(loop_device) << "Failed to find parent block device of "
-                           << dm_path;
-
-  // Now we are ready to assert on mounted_apex.
-  ASSERT_EQ(*loop_device, mounted_apex->loop_name);
-  ASSERT_EQ(installer_->test_installed_file, mounted_apex->full_path);
-  std::string expected_mount = std::string(kApexRoot) + "/" + package_id;
-  ASSERT_EQ(expected_mount, mounted_apex->mount_point);
-  ASSERT_EQ(package_id, mounted_apex->device_name);
-  ASSERT_EQ("", mounted_apex->hashtree_loop_name);
-}
 
 struct NoHashtreeApexNameProvider {
   static std::string GetTestName() {
@@ -1075,34 +860,6 @@ struct NoHashtreeApexNameProvider {
 
 class ApexServiceNoHashtreeApexActivationTest
     : public ApexServiceActivationTest<NoHashtreeApexNameProvider> {};
-
-TEST_F(ApexServiceNoHashtreeApexActivationTest, Activate) {
-  ASSERT_TRUE(IsOk(service_->activatePackage(installer_->test_installed_file)))
-      << GetDebugStr(installer_.get());
-  {
-    // Check package is active.
-    Result<bool> active = IsActive(installer_->package, installer_->version,
-                                   installer_->test_installed_file);
-    ASSERT_TRUE(IsOk(active));
-    ASSERT_TRUE(*active) << Join(GetActivePackagesStrings(), ',');
-  }
-
-  std::string package_id =
-      installer_->package + "@" + std::to_string(installer_->version);
-  // Check that hashtree file was created.
-  {
-    std::string hashtree_path =
-        std::string(kApexHashTreeDir) + "/" + package_id;
-    auto exists = PathExists(hashtree_path);
-    ASSERT_TRUE(IsOk(exists));
-    ASSERT_TRUE(*exists);
-  }
-
-  // Check that block device can be read.
-  auto block_device = GetBlockDeviceForApex(package_id);
-  ASSERT_TRUE(IsOk(block_device));
-  ASSERT_TRUE(IsOk(ReadDevice(*block_device)));
-}
 
 TEST_F(ApexServiceNoHashtreeApexActivationTest,
        NewSessionDoesNotImpactActivePackage) {
@@ -1150,71 +907,6 @@ TEST_F(ApexServiceNoHashtreeApexActivationTest,
   // Check that block device of active APEX can still be read.
   auto block_device = GetBlockDeviceForApex(package_id);
   ASSERT_TRUE(IsOk(block_device));
-}
-
-TEST_F(ApexServiceNoHashtreeApexActivationTest, ShowsUpInMountedApexDatabase) {
-  ASSERT_TRUE(IsOk(service_->activatePackage(installer_->test_installed_file)))
-      << GetDebugStr(installer_.get());
-
-  MountedApexDatabase db;
-  db.PopulateFromMounts(kActiveApexPackagesDataDir, kApexDecompressedDir,
-                        kApexHashTreeDir);
-
-  std::optional<MountedApexData> mounted_apex;
-  db.ForallMountedApexes(installer_->package,
-                         [&](const MountedApexData& d, bool active) {
-                           if (active) {
-                             mounted_apex.emplace(d);
-                           }
-                         });
-  ASSERT_TRUE(mounted_apex)
-      << "Haven't found " << installer_->test_installed_file
-      << " in the database of mounted apexes";
-
-  // Get all necessary data for assertions on mounted_apex.
-  std::string package_id =
-      installer_->package + "@" + std::to_string(installer_->version);
-  std::vector<std::string> slaves = ListSlavesOfDmDevice(package_id);
-  ASSERT_EQ(2u, slaves.size())
-      << "Unexpected number of slaves: " << Join(slaves, ",");
-
-  // Now we are ready to assert on mounted_apex.
-  ASSERT_EQ(installer_->test_installed_file, mounted_apex->full_path);
-  std::string expected_mount = std::string(kApexRoot) + "/" + package_id;
-  ASSERT_EQ(expected_mount, mounted_apex->mount_point);
-  ASSERT_EQ(package_id, mounted_apex->device_name);
-  // For loops we only check that both loop_name and hashtree_loop_name are
-  // slaves of the top device mapper device.
-  ASSERT_THAT(slaves, Contains(mounted_apex->loop_name));
-  ASSERT_THAT(slaves, Contains(mounted_apex->hashtree_loop_name));
-  ASSERT_NE(mounted_apex->loop_name, mounted_apex->hashtree_loop_name);
-}
-
-TEST_F(ApexServiceNoHashtreeApexActivationTest, DeactivateFreesLoopDevices) {
-  ASSERT_TRUE(IsOk(service_->activatePackage(installer_->test_installed_file)))
-      << GetDebugStr(installer_.get());
-
-  std::string package_id =
-      installer_->package + "@" + std::to_string(installer_->version);
-  std::vector<std::string> slaves = ListSlavesOfDmDevice(package_id);
-  ASSERT_EQ(2u, slaves.size())
-      << "Unexpected number of slaves: " << Join(slaves, ",");
-
-  ASSERT_TRUE(
-      IsOk(service_->deactivatePackage(installer_->test_installed_file)));
-
-  for (const auto& loop : slaves) {
-    struct loop_info li;
-    unique_fd fd(TEMP_FAILURE_RETRY(open(loop.c_str(), O_RDWR | O_CLOEXEC)));
-    ASSERT_NE(-1, fd.get())
-        << "Failed to open " << loop << " : " << strerror(errno);
-    ASSERT_EQ(-1, ioctl(fd.get(), LOOP_GET_STATUS, &li))
-        << loop << " is still alive";
-    ASSERT_EQ(ENXIO, errno) << "Unexpected errno : " << strerror(errno);
-  }
-
-  // Skip deactivatePackage on TearDown.
-  installer_.reset();
 }
 
 TEST_F(ApexServiceTest, NoHashtreeApexStagePackagesMovesHashtree) {
@@ -1440,71 +1132,6 @@ class ApexServiceDeactivationTest : public ApexServiceActivationSuccessTest {
 
   std::unique_ptr<PrepareTestApexForInstall> installer_;
 };
-
-TEST_F(ApexServiceActivationSuccessTest, DmDeviceTearDown) {
-  std::string package_id =
-      installer_->package + "@" + std::to_string(installer_->version);
-
-  auto find_fn = [](const std::string& name) {
-    auto& dm = DeviceMapper::Instance();
-    std::vector<DeviceMapper::DmBlockDevice> devices;
-    if (!dm.GetAvailableDevices(&devices)) {
-      return Result<bool>(Errorf("GetAvailableDevices failed"));
-    }
-    for (const auto& device : devices) {
-      if (device.name() == name) {
-        return Result<bool>(true);
-      }
-    }
-    return Result<bool>(false);
-  };
-
-#define ASSERT_FIND(type)                   \
-  {                                         \
-    Result<bool> res = find_fn(package_id); \
-    ASSERT_RESULT_OK(res);                  \
-    ASSERT_##type(*res);                    \
-  }
-
-  ASSERT_FIND(FALSE);
-
-  ASSERT_TRUE(IsOk(service_->activatePackage(installer_->test_installed_file)))
-      << GetDebugStr(installer_.get());
-
-  ASSERT_FIND(TRUE);
-
-  ASSERT_TRUE(
-      IsOk(service_->deactivatePackage(installer_->test_installed_file)));
-
-  ASSERT_FIND(FALSE);
-
-  installer_.reset();  // Skip TearDown deactivatePackage.
-}
-
-TEST_F(ApexServiceActivationSuccessTest, DeactivateFreesLoopDevices) {
-  ASSERT_TRUE(IsOk(service_->activatePackage(installer_->test_installed_file)))
-      << GetDebugStr(installer_.get());
-
-  std::string package_id =
-      installer_->package + "@" + std::to_string(installer_->version);
-  std::vector<std::string> slaves = ListSlavesOfDmDevice(package_id);
-  ASSERT_EQ(1u, slaves.size())
-      << "Unexpected number of slaves: " << Join(slaves, ",");
-  const std::string& loop = slaves[0];
-
-  ASSERT_TRUE(
-      IsOk(service_->deactivatePackage(installer_->test_installed_file)));
-
-  struct loop_info li;
-  unique_fd fd(TEMP_FAILURE_RETRY(open(loop.c_str(), O_RDWR | O_CLOEXEC)));
-  ASSERT_NE(-1, fd.get()) << "Failed to open " << loop << " : "
-                          << strerror(errno);
-  ASSERT_EQ(-1, ioctl(fd.get(), LOOP_GET_STATUS, &li))
-      << loop << " is still alive";
-  ASSERT_EQ(ENXIO, errno) << "Unexpected errno : " << strerror(errno);
-
-  installer_.reset();  // Skip TearDown deactivatePackage.
-}
 
 class ApexServicePrePostInstallTest : public ApexServiceTest {
  public:
