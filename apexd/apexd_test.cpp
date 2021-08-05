@@ -72,6 +72,7 @@ using ::testing::ByRef;
 using ::testing::Contains;
 using ::testing::HasSubstr;
 using ::testing::IsEmpty;
+using ::testing::Not;
 using ::testing::StartsWith;
 using ::testing::UnorderedElementsAre;
 using ::testing::UnorderedElementsAreArray;
@@ -4137,6 +4138,48 @@ TEST_F(ApexdUnitTest, StagePackagesMultiplePackages) {
                                    GetDataDir().c_str());
   ASSERT_EQ(0, access(staged_path1.c_str(), F_OK));
   ASSERT_EQ(0, access(staged_path2.c_str(), F_OK));
+}
+
+TEST_F(ApexdUnitTest, UnstagePackages) {
+  auto file_path1 = AddDataApex("apex.apexd_test.apex");
+  auto file_path2 = AddDataApex("apex.apexd_test_different_app.apex");
+
+  ASSERT_THAT(UnstagePackages({file_path1}), Ok());
+  ASSERT_EQ(-1, access(file_path1.c_str(), F_OK));
+  ASSERT_EQ(errno, ENOENT);
+  ASSERT_EQ(0, access(file_path2.c_str(), F_OK));
+}
+
+TEST_F(ApexdUnitTest, UnstagePackagesEmptyInput) {
+  auto file_path1 = AddDataApex("apex.apexd_test.apex");
+  auto file_path2 = AddDataApex("apex.apexd_test_different_app.apex");
+
+  ASSERT_THAT(UnstagePackages({}),
+              HasError(WithMessage("Empty set of inputs")));
+  ASSERT_EQ(0, access(file_path1.c_str(), F_OK));
+  ASSERT_EQ(0, access(file_path2.c_str(), F_OK));
+}
+
+TEST_F(ApexdUnitTest, UnstagePackagesFail) {
+  auto file_path1 = AddDataApex("apex.apexd_test.apex");
+  auto bad_path = GetDataDir() + "/missing.apex";
+
+  ASSERT_THAT(UnstagePackages({file_path1, bad_path}), Not(Ok()));
+  ASSERT_EQ(0, access(file_path1.c_str(), F_OK));
+}
+
+TEST_F(ApexdUnitTest, UnstagePackagesFailPreInstalledApex) {
+  auto file_path1 = AddPreInstalledApex("apex.apexd_test.apex");
+  auto file_path2 = AddDataApex("apex.apexd_test_different_app.apex");
+
+  auto& instance = ApexFileRepository::GetInstance();
+  ASSERT_THAT(instance.AddPreInstalledApex({GetBuiltInDir()}), Ok());
+
+  ASSERT_THAT(UnstagePackages({file_path1, file_path2}),
+              HasError(WithMessage("Can't uninstall pre-installed apex " +
+                                   file_path1)));
+  ASSERT_EQ(0, access(file_path1.c_str(), F_OK));
+  ASSERT_EQ(0, access(file_path2.c_str(), F_OK));
 }
 
 }  // namespace apex
