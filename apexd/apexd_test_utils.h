@@ -17,7 +17,6 @@
 #include <filesystem>
 #include <fstream>
 
-#include <asm-generic/errno-base.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <linux/loop.h>
@@ -34,6 +33,8 @@
 #include <android/apex/ApexInfo.h>
 #include <android/apex/ApexSessionInfo.h>
 #include <binder/IServiceManager.h>
+#include <fstab/fstab.h>
+#include <libdm/dm.h>
 #include <selinux/android.h>
 
 #include "apex_file.h"
@@ -361,6 +362,78 @@ inline base::Result<loop::LoopbackDeviceUniqueFd> WriteBlockApex(
   std::string intermediate_path = apex_path + ".intermediate";
   std::filesystem::copy(apex_file, intermediate_path);
   return MountViaLoopDevice(intermediate_path, apex_path);
+}
+
+inline android::base::Result<std::string> GetBlockDeviceForApex(
+    const std::string& package_id) {
+  using android::fs_mgr::Fstab;
+  using android::fs_mgr::GetEntryForMountPoint;
+  using android::fs_mgr::ReadFstabFromFile;
+
+  std::string mount_point = std::string(kApexRoot) + "/" + package_id;
+  Fstab fstab;
+  if (!ReadFstabFromFile("/proc/mounts", &fstab)) {
+    return android::base::Error() << "Failed to read /proc/mounts";
+  }
+  auto entry = GetEntryForMountPoint(&fstab, mount_point);
+  if (entry == nullptr) {
+    return android::base::Error()
+           << "Can't find " << mount_point << " in /proc/mounts";
+  }
+  return entry->blk_device;
+}
+
+inline android::base::Result<void> ReadDevice(const std::string& block_device) {
+  static constexpr int kBlockSize = 4096;
+  static constexpr size_t kBufSize = 1024 * kBlockSize;
+  std::vector<uint8_t> buffer(kBufSize);
+
+  android::base::unique_fd fd(
+      TEMP_FAILURE_RETRY(open(block_device.c_str(), O_RDONLY | O_CLOEXEC)));
+  if (fd.get() == -1) {
+    return android::base::ErrnoError() << "Can't open " << block_device;
+  }
+
+  while (true) {
+    int n = read(fd.get(), buffer.data(), kBufSize);
+    if (n < 0) {
+      return android::base::ErrnoError() << "Failed to read " << block_device;
+    }
+    if (n == 0) {
+      break;
+    }
+  }
+  return {};
+}
+
+inline android::base::Result<std::vector<std::string>> ListChildLoopDevices(
+    const std::string& name) {
+  using android::base::Error;
+  using android::dm::DeviceMapper;
+
+  DeviceMapper& dm = DeviceMapper::Instance();
+  std::string dm_path;
+  if (!dm.GetDmDevicePathByName(name, &dm_path)) {
+    return Error() << "Failed to get path of dm device " << name;
+  }
+  // It's a little bit sad we can't use ConsumePrefix here :(
+  constexpr std::string_view kDevPrefix = "/dev/";
+  if (!android::base::StartsWith(dm_path, kDevPrefix)) {
+    return Error() << "Illegal path " << dm_path;
+  }
+  dm_path = dm_path.substr(kDevPrefix.length());
+  std::vector<std::string> children;
+  std::string dir = "/sys/" + dm_path + "/slaves";
+  auto status = WalkDir(dir, [&](const auto& entry) {
+    std::error_code ec;
+    if (entry.is_symlink(ec)) {
+      children.push_back("/dev/block/" + entry.path().filename().string());
+    }
+  });
+  if (!status.ok()) {
+    return status.error();
+  }
+  return children;
 }
 
 }  // namespace apex
