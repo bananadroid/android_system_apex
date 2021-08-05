@@ -899,9 +899,9 @@ Result<std::vector<ApexFile>> VerifyPackages(
   return std::move(*apex_files);
 }
 
-Result<ApexFile> VerifySessionDir(const int session_id) {
-  std::string session_dir_path = std::string(kStagedSessionsDir) + "/session_" +
-                                 std::to_string(session_id);
+Result<ApexFile> VerifySessionDir(int session_id) {
+  std::string session_dir_path =
+      StringPrintf("%s/session_%d", gConfig->staged_session_dir, session_id);
   LOG(INFO) << "Scanning " << session_dir_path
             << " looking for packages to be validated";
   Result<std::vector<std::string>> scan =

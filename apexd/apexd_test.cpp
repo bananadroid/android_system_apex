@@ -57,6 +57,7 @@ using android::base::GetProperty;
 using android::base::Join;
 using android::base::make_scope_guard;
 using android::base::ReadFileToString;
+using android::base::ReadFully;
 using android::base::RemoveFileIfExists;
 using android::base::Result;
 using android::base::Split;
@@ -1610,6 +1611,103 @@ TEST_F(ApexdMountTest, DeactivePackageFreesLoopDevices) {
     EXPECT_EQ(-1, ioctl(fd.get(), LOOP_GET_STATUS, &li))
         << loop << " is still alive";
     EXPECT_EQ(ENXIO, errno) << "Unexpected errno : " << strerror(errno);
+  }
+}
+
+TEST_F(ApexdMountTest, NoHashtreeApexNewSessionDoesNotImpactActivePackage) {
+  MockCheckpointInterface checkpoint_interface;
+  checkpoint_interface.SetSupportsCheckpoint(true);
+  InitializeVold(&checkpoint_interface);
+
+  AddPreInstalledApex("apex.apexd_test_no_hashtree.apex");
+  ApexFileRepository::GetInstance().AddPreInstalledApex({GetBuiltInDir()});
+
+  std::string file_path = AddDataApex("apex.apexd_test_no_hashtree.apex");
+  ASSERT_THAT(ActivatePackage(file_path), Ok());
+  UnmountOnTearDown(file_path);
+
+  ASSERT_THAT(CreateStagedSession("apex.apexd_test_no_hashtree_2.apex", 239),
+              Ok());
+  auto status =
+      SubmitStagedSession(239, {}, /* has_rollback_enabled= */ false,
+                          /* is_rollback= */ false, /* rollback_id= */ -1);
+  ASSERT_THAT(status, Ok());
+
+  // Check that new hashtree file was created.
+  {
+    std::string hashtree_path =
+        GetHashTreeDir() + "/com.android.apex.test_package@1.new";
+    ASSERT_THAT(PathExists(hashtree_path), HasValue(true))
+        << hashtree_path << " does not exist";
+  }
+  // Check that active hashtree is still there.
+  {
+    std::string hashtree_path =
+        GetHashTreeDir() + "/com.android.apex.test_package@1";
+    ASSERT_THAT(PathExists(hashtree_path), HasValue(true))
+        << hashtree_path << " does not exist";
+  }
+
+  // Check that block device of active APEX can still be read.
+  auto block_device = GetBlockDeviceForApex("com.android.apex.test_package@1");
+  ASSERT_THAT(block_device, Ok());
+  ASSERT_THAT(ReadDevice(*block_device), Ok());
+}
+
+TEST_F(ApexdMountTest, NoHashtreeApexStagePackagesMovesHashtree) {
+  MockCheckpointInterface checkpoint_interface;
+  checkpoint_interface.SetSupportsCheckpoint(true);
+  InitializeVold(&checkpoint_interface);
+
+  AddPreInstalledApex("apex.apexd_test_no_hashtree.apex");
+  ApexFileRepository::GetInstance().AddPreInstalledApex({GetBuiltInDir()});
+
+  auto read_fn = [](const std::string& path) -> std::vector<uint8_t> {
+    static constexpr size_t kBufSize = 4096;
+    std::vector<uint8_t> buffer(kBufSize);
+    unique_fd fd(TEMP_FAILURE_RETRY(open(path.c_str(), O_RDONLY | O_CLOEXEC)));
+    if (fd.get() == -1) {
+      PLOG(ERROR) << "Failed to open " << path;
+      ADD_FAILURE();
+      return buffer;
+    }
+    if (!ReadFully(fd.get(), buffer.data(), kBufSize)) {
+      PLOG(ERROR) << "Failed to read " << path;
+      ADD_FAILURE();
+    }
+    return buffer;
+  };
+
+  ASSERT_THAT(CreateStagedSession("apex.apexd_test_no_hashtree_2.apex", 37),
+              Ok());
+  auto status =
+      SubmitStagedSession(37, {}, /* has_rollback_enabled= */ false,
+                          /* is_rollback= */ false, /* rollback_id= */ -1);
+  ASSERT_THAT(status, Ok());
+  auto staged_apex = std::move((*status)[0]);
+
+  // Check that new hashtree file was created.
+  std::vector<uint8_t> original_hashtree_data;
+  {
+    std::string hashtree_path =
+        GetHashTreeDir() + "/com.android.apex.test_package@1.new";
+    ASSERT_THAT(PathExists(hashtree_path), HasValue(true));
+    original_hashtree_data = read_fn(hashtree_path);
+  }
+
+  ASSERT_THAT(StagePackages({staged_apex.GetPath()}), Ok());
+  // Check that hashtree file was moved.
+  {
+    std::string hashtree_path =
+        GetHashTreeDir() + "/com.android.apex.test_package@1.new";
+    ASSERT_THAT(PathExists(hashtree_path), HasValue(false));
+  }
+  {
+    std::string hashtree_path =
+        GetHashTreeDir() + "/com.android.apex.test_package@1";
+    ASSERT_THAT(PathExists(hashtree_path), HasValue(true));
+    std::vector<uint8_t> moved_hashtree_data = read_fn(hashtree_path);
+    ASSERT_EQ(moved_hashtree_data, original_hashtree_data);
   }
 }
 
