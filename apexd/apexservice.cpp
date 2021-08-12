@@ -87,8 +87,6 @@ class ApexService : public BnApexService {
   BinderStatus getAllPackages(std::vector<ApexInfo>* aidl_return) override;
   BinderStatus preinstallPackages(
       const std::vector<std::string>& paths) override;
-  BinderStatus postinstallPackages(
-      const std::vector<std::string>& paths) override;
   BinderStatus abortStagedSession(int session_id) override;
   BinderStatus revertActiveSessions() override;
   BinderStatus resumeRevertIfNeeded() override;
@@ -472,25 +470,6 @@ BinderStatus ApexService::preinstallPackages(
       String8(res.error().message().c_str()));
 }
 
-BinderStatus ApexService::postinstallPackages(
-    const std::vector<std::string>& paths) {
-  BinderStatus debug_check = CheckDebuggable("postinstallPackages");
-  if (!debug_check.isOk()) {
-    return debug_check;
-  }
-
-  Result<void> res = ::android::apex::PostinstallPackages(paths);
-  if (res.ok()) {
-    return BinderStatus::ok();
-  }
-
-  LOG(ERROR) << "Failed to postinstall packages "
-             << android::base::Join(paths, ',') << ": " << res.error();
-  return BinderStatus::fromExceptionCode(
-      BinderStatus::EX_SERVICE_SPECIFIC,
-      String8(res.error().message().c_str()));
-}
-
 BinderStatus ApexService::abortStagedSession(int session_id) {
   LOG(DEBUG) << "abortStagedSession() received by ApexService.";
   Result<void> res = ::android::apex::AbortStagedSession(session_id);
@@ -755,9 +734,6 @@ status_t ApexService::shellCommand(int in, int out, int err,
         << "  preinstallPackages [package_path1] ([package_path2]...) - run "
            "pre-install hooks of the given packages"
         << std::endl
-        << "  postinstallPackages [package_path1] ([package_path2]...) - run "
-           "post-install hooks of the given packages"
-        << std::endl
         << "  getStagedSessionInfo [sessionId] - displays information about a "
            "given session previously submitted"
         << std::endl
@@ -969,11 +945,10 @@ status_t ApexService::shellCommand(int in, int out, int err,
     return BAD_VALUE;
   }
 
-  if (cmd == String16("preinstallPackages") ||
-      cmd == String16("postinstallPackages")) {
+  if (cmd == String16("preinstallPackages")) {
     if (args.size() < 2) {
       print_help(err,
-                 "preinstallPackages/postinstallPackages requires at least"
+                 "preinstallPackages requires at least"
                  " one package_path");
       return BAD_VALUE;
     }
@@ -982,13 +957,11 @@ status_t ApexService::shellCommand(int in, int out, int err,
     for (size_t i = 1; i != args.size(); ++i) {
       pkgs.emplace_back(String8(args[i]).string());
     }
-    BinderStatus status = cmd == String16("preinstallPackages")
-                              ? preinstallPackages(pkgs)
-                              : postinstallPackages(pkgs);
+    BinderStatus status = preinstallPackages(pkgs);
     if (status.isOk()) {
       return OK;
     }
-    std::string msg = StringLog() << "Failed to pre/postinstall package(s): "
+    std::string msg = StringLog() << "Failed to preinstall package(s): "
                                   << status.toString8().string() << std::endl;
     dprintf(err, "%s", msg.c_str());
     return BAD_VALUE;

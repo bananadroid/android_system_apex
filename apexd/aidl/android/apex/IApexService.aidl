@@ -81,11 +81,6 @@ interface IApexService {
     * Not meant for use outside of testing. The call will not be
     * functional on user builds.
     */
-   void postinstallPackages(in @utf8InCpp List<String> package_tmp_paths);
-   /**
-    * Not meant for use outside of testing. The call will not be
-    * functional on user builds.
-    */
    void stagePackages(in @utf8InCpp List<String> package_tmp_paths);
    /**
     * Not meant for use outside of testing. The call will not be
