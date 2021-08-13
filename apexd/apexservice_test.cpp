@@ -69,7 +69,6 @@ namespace apex {
 
 using android::sp;
 using android::String16;
-using android::apex::testing::ApexInfoEq;
 using android::apex::testing::CreateSessionInfo;
 using android::apex::testing::IsOk;
 using android::apex::testing::SessionInfoEq;
@@ -83,7 +82,6 @@ using android::base::unique_fd;
 using android::dm::DeviceMapper;
 using ::apex::proto::ApexManifest;
 using ::apex::proto::SessionState;
-using ::testing::Contains;
 using ::testing::EndsWith;
 using ::testing::HasSubstr;
 using ::testing::Not;
@@ -1838,18 +1836,15 @@ class ApexShimUpdateTest : public ApexServiceTest {
     }
     ApexServiceTest::SetUp();
 
-    // Assert that shim apex is pre-installed.
+    // Skip test if for some reason shim APEX is missing.
     std::vector<ApexInfo> list;
     ASSERT_TRUE(IsOk(service_->getAllPackages(&list)));
-    ApexInfo expected;
-    expected.moduleName = "com.android.apex.cts.shim";
-    expected.modulePath = "/system/apex/com.android.apex.cts.shim.apex";
-    expected.preinstalledModulePath =
-        "/system/apex/com.android.apex.cts.shim.apex";
-    expected.versionCode = 1;
-    expected.isFactory = true;
-    expected.isActive = true;
-    ASSERT_THAT(list, Contains(ApexInfoEq(expected)));
+    bool found = std::any_of(list.begin(), list.end(), [](const auto& apex) {
+      return apex.moduleName == "com.android.apex.cts.shim";
+    });
+    if (!found) {
+      GTEST_SKIP() << "Can't find com.android.apex.cts.shim";
+    }
   }
 };
 
