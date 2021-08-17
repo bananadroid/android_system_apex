@@ -4022,7 +4022,7 @@ TEST_F(ApexActivationFailureTests, MultipleApexFileInStagingDirectory) {
               HasSubstr("More than one APEX package found"));
 }
 
-TEST_F(ApexActivationFailureTests, PostInstallFailsForApex) {
+TEST_F(ApexActivationFailureTests, CorruptedSuperblockApexCannotBeStaged) {
   auto apex_session =
       CreateStagedSession("apex.apexd_test_corrupt_superblock_apex.apex", 123);
   apex_session->UpdateStateAndCommit(SessionState::STAGED);
@@ -4031,7 +4031,7 @@ TEST_F(ApexActivationFailureTests, PostInstallFailsForApex) {
 
   apex_session = ApexSession::GetSession(123);
   ASSERT_THAT(apex_session->GetErrorMessage(),
-              HasSubstr("Postinstall failed for session"));
+              HasSubstr("Couldn't find filesystem magic"));
 }
 
 TEST_F(ApexActivationFailureTests, CorruptedApexCannotBeStaged) {
