@@ -33,7 +33,8 @@ message ApexManifest {
   string preInstallHook = 3;
 
   // Post Install Hook
-  string postInstallHook = 4;
+  // This feature is not supported.
+  string postInstallHook = 4 [ deprecated = true ];
 
   // Version Name
   string versionName = 5;
