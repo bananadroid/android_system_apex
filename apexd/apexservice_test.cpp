@@ -911,26 +911,6 @@ TEST_F(ApexServicePrePostInstallTest, PreinstallFail) {
              /* test_message= */ nullptr, /* expect_success= */ false);
 }
 
-TEST_F(ApexServicePrePostInstallTest, Postinstall) {
-  RunPrePost(&IApexService::postinstallPackages,
-             {"apex.apexd_test_postinstall.apex"},
-             "sh      : PostInstall Test");
-}
-
-TEST_F(ApexServicePrePostInstallTest, MultiPostinstall) {
-  constexpr const char* kLogcatText =
-      "sh      : /apex/com.android.apex.test_package/etc/sample_prebuilt_file";
-  RunPrePost(&IApexService::postinstallPackages,
-             {"apex.apexd_test_postinstall.apex", "apex.apexd_test.apex"},
-             kLogcatText);
-}
-
-TEST_F(ApexServicePrePostInstallTest, PostinstallFail) {
-  RunPrePost(&IApexService::postinstallPackages,
-             {"apex.apexd_test_prepostinstall.fail.apex"},
-             /* test_message= */ nullptr, /* expect_success= */ false);
-}
-
 TEST_F(ApexServiceTest, SubmitSingleSessionTestSuccess) {
   PrepareTestApexForInstall installer(GetTestFile("apex.apexd_test.apex"),
                                       "/data/app-staging/session_123",

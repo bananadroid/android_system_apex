@@ -78,8 +78,6 @@ android::base::Result<void> ResumeRevertIfNeeded();
 
 android::base::Result<void> PreinstallPackages(
     const std::vector<std::string>& paths) WARN_UNUSED;
-android::base::Result<void> PostinstallPackages(
-    const std::vector<std::string>& paths) WARN_UNUSED;
 
 android::base::Result<void> StagePackages(
     const std::vector<std::string>& tmpPaths) WARN_UNUSED;

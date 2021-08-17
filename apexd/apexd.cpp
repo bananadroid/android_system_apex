@@ -799,11 +799,6 @@ Result<void> PreinstallPackages(const std::vector<ApexFile>& apexes) {
                                 &StagePreInstall);
 }
 
-Result<void> PostinstallPackages(const std::vector<ApexFile>& apexes) {
-  return PrePostinstallPackages(apexes, &ApexManifest::postinstallhook,
-                                &StagePostInstall);
-}
-
 // Converts a list of apex file paths into a list of ApexFile objects
 //
 // Returns error when trying to open empty set of inputs.
@@ -2113,17 +2108,6 @@ void ScanStagedSessionsDirAndStage() {
       continue;
     }
 
-    // Run postinstall, if necessary.
-    Result<void> postinstall_status = PostinstallPackages(apexes);
-    if (!postinstall_status.ok()) {
-      std::string error_message =
-          StringPrintf("Postinstall failed for session %d %s", session_id,
-                       postinstall_status.error().message().c_str());
-      LOG(ERROR) << error_message;
-      session.SetErrorMessage(error_message);
-      continue;
-    }
-
     for (const auto& apex : apexes) {
       // TODO(b/158470836): Avoid opening ApexFile repeatedly.
       Result<ApexFile> apex_file = ApexFile::Open(apex);
@@ -2162,15 +2146,6 @@ Result<void> PreinstallPackages(const std::vector<std::string>& paths) {
   }
   LOG(DEBUG) << "PreinstallPackages() for " << Join(paths, ',');
   return PreinstallPackages(*apex_files);
-}
-
-Result<void> PostinstallPackages(const std::vector<std::string>& paths) {
-  Result<std::vector<ApexFile>> apex_files = OpenApexFiles(paths);
-  if (!apex_files.ok()) {
-    return apex_files.error();
-  }
-  LOG(DEBUG) << "PostinstallPackages() for " << Join(paths, ',');
-  return PostinstallPackages(*apex_files);
 }
 
 namespace {
