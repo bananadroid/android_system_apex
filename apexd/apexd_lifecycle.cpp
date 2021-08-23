@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "apexd"
+#include <chrono>
+#include <thread>
 
 #include "apexd_lifecycle.h"
 
@@ -22,6 +23,8 @@
 #include <android-base/properties.h>
 
 #include "apexd_utils.h"
+
+#define LOG_TAG "apexd"
 
 using android::base::GetProperty;
 using android::base::Result;
@@ -52,17 +55,20 @@ void ApexdLifecycle::WaitForBootStatus(
       auto result = revert_fn(name, "");
       if (!result.ok()) {
         LOG(ERROR) << "Revert failed : " << result.error();
-        break;
+        return WaitForBootStatus();
       } else {
-        // This should never be reached, since revert_fn should've rebooted a
-        // device. But if for some reason we end up here, let's reboot it
-        // manually.
-        LOG(ERROR) << "Active sessions were reverted, but reboot wasn't "
-                      "triggered. Rebooting manually";
-        Reboot();
-        return;
+        // This should never be reached, since revert_fn should've rebooted
+        // the device.
+        LOG(FATAL) << "Active sessions were reverted, but reboot wasn't "
+                      "triggered.";
       }
     }
+  }
+}
+
+void ApexdLifecycle::WaitForBootStatus() {
+  while (!boot_completed_) {
+    std::this_thread::sleep_for(std::chrono::seconds(1));
   }
 }
 
