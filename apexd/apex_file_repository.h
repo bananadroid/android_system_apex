@@ -16,14 +16,16 @@
 
 #pragma once
 
+#include <android-base/result.h>
+
 #include <functional>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
+
 #include "apex_constants.h"
 #include "apex_file.h"
-
-#include <android-base/result.h>
 
 namespace android {
 namespace apex {
@@ -107,6 +109,9 @@ class ApexFileRepository final {
   // Checks if given |apex| is decompressed from a pre-installed APEX
   bool IsDecompressedApex(const ApexFile& apex) const;
 
+  // Checks if given |apex| is loaded from block device.
+  bool IsBlockApex(const ApexFile& apex) const;
+
   // Returns reference to all pre-installed APEX on device
   std::vector<ApexFileRef> GetPreInstalledApexFiles() const;
 
@@ -132,6 +137,7 @@ class ApexFileRepository final {
     pre_installed_store_.clear();
     data_store_.clear();
     decompression_dir_ = decompression_dir;
+    block_disk_path_.reset();
   }
 
  private:
@@ -149,6 +155,8 @@ class ApexFileRepository final {
   // Decompression directory which will be used to determine if apex is
   // decompressed or not
   std::string decompression_dir_;
+  // Disk path where block apexes are read from. AddBlockApex() sets this.
+  std::optional<std::string> block_disk_path_;
 };
 
 }  // namespace apex
