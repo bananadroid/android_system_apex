@@ -542,9 +542,12 @@ TEST_F(ApexFileRepositoryTestAddBlockApex,
   auto status = instance.AddBlockApex(metadata_partition_path);
   ASSERT_RESULT_OK(status);
 
-  // "block" apexes are treated as "pre-installed"
   auto apex_foo = ApexFile::Open(apex_foo_path);
   ASSERT_RESULT_OK(apex_foo);
+  // block apexes can be identified with IsBlockApex
+  ASSERT_TRUE(instance.IsBlockApex(*apex_foo));
+
+  // "block" apexes are treated as "pre-installed"
   auto ret_foo = instance.GetPreInstalledApex("com.android.apex.test_package");
   ASSERT_THAT(ret_foo, ApexFileEq(ByRef(*apex_foo)));
 
