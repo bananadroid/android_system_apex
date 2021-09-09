@@ -105,6 +105,9 @@ android::base::Result<void> ApexFileRepository::AddPreInstalledApex(
 
 Result<void> ApexFileRepository::AddBlockApex(
     const std::string& metadata_partition) {
+  CHECK(!block_disk_path_.has_value())
+      << "AddBlockApex() can't be called twice.";
+
   // TODO(b/185069443) consider moving the logic to find disk_path from
   // metadata_partition to its own library
   LOG(INFO) << "Scanning " << metadata_partition << " for host apexes";
@@ -126,7 +129,7 @@ Result<void> ApexFileRepository::AddBlockApex(
     return {};
   }
 
-  const std::string disk_path(metadata_path_view);
+  block_disk_path_ = std::string(metadata_path_view);
 
   // The first partition is "metadata".
   auto metadata = android::microdroid::ReadMetadata(metadata_realpath);
@@ -142,7 +145,7 @@ Result<void> ApexFileRepository::AddBlockApex(
     const auto& apex_config = metadata->apexes(i);
 
     const std::string apex_path =
-        disk_path + std::to_string(i + kFirstApexPartition);
+        *block_disk_path_ + std::to_string(i + kFirstApexPartition);
     auto apex_file = ApexFile::Open(apex_path);
     if (!apex_file.ok()) {
       return Error() << "Failed to open " << apex_path << " : "
@@ -288,6 +291,11 @@ bool ApexFileRepository::IsPreInstalledApex(const ApexFile& apex) const {
     return false;
   }
   return it->second.GetPath() == apex.GetPath() || IsDecompressedApex(apex);
+}
+
+bool ApexFileRepository::IsBlockApex(const ApexFile& apex) const {
+  return block_disk_path_.has_value() &&
+         apex.GetPath().starts_with(*block_disk_path_);
 }
 
 std::vector<ApexFileRef> ApexFileRepository::GetPreInstalledApexFiles() const {
