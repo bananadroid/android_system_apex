@@ -237,7 +237,7 @@ class ApexdUnitTest : public ::testing::Test {
     auto apex = metadata.add_apexes();
     apex->set_name("apex");
     if (pubkey.has_value()) {
-      apex->set_publickey(*pubkey);
+      apex->set_public_key(*pubkey);
     }
 
     std::ofstream out(vm_payload_metadata_path_);
