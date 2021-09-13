@@ -532,6 +532,17 @@ Result<MountedApexData> MountPackageImpl(const ApexFile& apex,
     return Error() << "Failed to verify Apex Verity data for " << full_path
                    << ": " << verity_data.error();
   }
+  if (instance.IsBlockApex(apex)) {
+    auto root_digest =
+        instance.GetBlockApexRootDigest(apex.GetManifest().name());
+    if (root_digest.has_value() &&
+        root_digest.value() != verity_data->root_digest) {
+      return Error()
+             << "Failed to verify Apex Verity data for " << full_path
+             << ": root digest mismatches with the one specified in config";
+    }
+  }
+
   std::string block_device = loopback_device.name;
   MountedApexData apex_data(loopback_device.name, apex.GetPath(), mount_point,
                             /* device_name = */ "",
