@@ -506,17 +506,25 @@ TEST(ApexFileRepositoryTest, GetPreInstalledApexNoSuchApexAborts) {
 struct ApexFileRepositoryTestAddBlockApex : public ::testing::Test {
   TemporaryDir test_dir;
 
-  void WriteMetadata(const std::string& metadata_path,
-                     const std::vector<std::string>& apex_paths) {
+  struct PayloadMetadata {
     android::microdroid::Metadata metadata;
-    metadata.set_version(1);
-    for (const auto& apex_path : apex_paths) {
+    std::string path;
+    PayloadMetadata(const std::string& path) : path(path) {}
+    PayloadMetadata& apex(const std::string& name,
+                          const std::string& public_key = "",
+                          const std::string& root_digest = "") {
       auto apex = metadata.add_apexes();
-      apex->set_name(apex_path);  // no strict rule for now; use the file_name
+      apex->set_name(name);
+      apex->set_public_key(public_key);
+      apex->set_root_digest(root_digest);
+      return *this;
     }
-    std::ofstream out(metadata_path);
-    android::microdroid::WriteMetadata(metadata, out);
-  }
+    ~PayloadMetadata() {
+      metadata.set_version(1);
+      std::ofstream out(path);
+      android::microdroid::WriteMetadata(metadata, out);
+    }
+  };
 };
 
 TEST_F(ApexFileRepositoryTestAddBlockApex,
@@ -533,7 +541,9 @@ TEST_F(ApexFileRepositoryTestAddBlockApex,
   const std::string apex_foo_path = test_dir.path + "/vdc2"s;
   const std::string apex_bar_path = test_dir.path + "/vdc3"s;
 
-  WriteMetadata(metadata_partition_path, {test_apex_foo, test_apex_bar});
+  PayloadMetadata(metadata_partition_path)
+      .apex(test_apex_foo)
+      .apex(test_apex_bar);
   auto loop_device1 = WriteBlockApex(test_apex_foo, apex_foo_path);
   auto loop_device2 = WriteBlockApex(test_apex_bar, apex_bar_path);
 
@@ -573,7 +583,7 @@ TEST_F(ApexFileRepositoryTestAddBlockApex,
   const std::string apex_bar_path = test_dir.path + "/vdc3"s;
 
   // metadata lists only "foo"
-  WriteMetadata(metadata_partition_path, {test_apex_foo});
+  PayloadMetadata(metadata_partition_path).apex(test_apex_foo);
   auto loop_device1 = WriteBlockApex(test_apex_foo, apex_foo_path);
   auto loop_device2 = WriteBlockApex(test_apex_bar, apex_bar_path);
 
@@ -593,7 +603,7 @@ TEST_F(ApexFileRepositoryTestAddBlockApex,
 
 TEST_F(ApexFileRepositoryTestAddBlockApex, FailsWhenTheresDuplicateNames) {
   // prepare payload disk
-  //  <test-dir>/vdc1 : metadata with apex.apexd_test.apex only
+  //  <test-dir>/vdc1 : metadata with v1 and v2 of apex.apexd_test
   //            /vdc2 : apex.apexd_test.apex
   //            /vdc3 : apex.apexd_test_v2.apex
 
@@ -604,10 +614,55 @@ TEST_F(ApexFileRepositoryTestAddBlockApex, FailsWhenTheresDuplicateNames) {
   const std::string apex_foo_path = test_dir.path + "/vdc2"s;
   const std::string apex_bar_path = test_dir.path + "/vdc3"s;
 
-  // metadata lists only "foo"
-  WriteMetadata(metadata_partition_path, {test_apex_foo, test_apex_bar});
+  PayloadMetadata(metadata_partition_path)
+      .apex(test_apex_foo)
+      .apex(test_apex_bar);
   auto loop_device1 = WriteBlockApex(test_apex_foo, apex_foo_path);
   auto loop_device2 = WriteBlockApex(test_apex_bar, apex_bar_path);
+
+  ApexFileRepository instance;
+  auto status = instance.AddBlockApex(metadata_partition_path);
+  ASSERT_FALSE(IsOk(status));
+}
+
+TEST_F(ApexFileRepositoryTestAddBlockApex, GetBlockApexRootDigest) {
+  // prepare payload disk with root digest
+  //  <test-dir>/vdc1 : metadata with apex.apexd_test.apex only
+  //            /vdc2 : apex.apexd_test.apex
+
+  const auto& test_apex_foo = GetTestFile("apex.apexd_test.apex");
+
+  const std::string metadata_partition_path = test_dir.path + "/vdc1"s;
+  const std::string apex_foo_path = test_dir.path + "/vdc2"s;
+
+  // metadata lists "foo"
+  PayloadMetadata(metadata_partition_path)
+      .apex(test_apex_foo, /*public_key=*/"", /*root_digest=*/"root_digest");
+  auto loop_device1 = WriteBlockApex(test_apex_foo, apex_foo_path);
+
+  // call ApexFileRepository::AddBlockApex()
+  ApexFileRepository instance;
+  auto status = instance.AddBlockApex(metadata_partition_path);
+  ASSERT_TRUE(IsOk(status));
+
+  ASSERT_EQ("root_digest",
+            instance.GetBlockApexRootDigest("com.android.apex.test_package"));
+}
+
+TEST_F(ApexFileRepositoryTestAddBlockApex, VerifyPublicKeyWhenAddingBlockApex) {
+  // prepare payload disk
+  //  <test-dir>/vdc1 : metadata with apex.apexd_test.apex only
+  //            /vdc2 : apex.apexd_test.apex
+
+  const auto& test_apex_foo = GetTestFile("apex.apexd_test.apex");
+
+  const std::string metadata_partition_path = test_dir.path + "/vdc1"s;
+  const std::string apex_foo_path = test_dir.path + "/vdc2"s;
+
+  // metadata lists "foo"
+  PayloadMetadata(metadata_partition_path)
+      .apex(test_apex_foo, /*public_key=*/"wrong public key");
+  auto loop_device1 = WriteBlockApex(test_apex_foo, apex_foo_path);
 
   // call ApexFileRepository::AddBlockApex()
   ApexFileRepository instance;
