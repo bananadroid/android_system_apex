@@ -96,6 +96,10 @@ class ApexFileRepository final {
   android::base::Result<const std::string> GetDataPath(
       const std::string& name) const;
 
+  // Returns root digest of an apex with the given |name| for block apexes.
+  std::optional<std::string> GetBlockApexRootDigest(
+      const std::string& name) const;
+
   // Checks whether there is a pre-installed version of an apex with the given
   // |name|.
   bool HasPreInstalledVersion(const std::string& name) const;
@@ -136,6 +140,7 @@ class ApexFileRepository final {
   void Reset(const std::string& decompression_dir = kApexDecompressedDir) {
     pre_installed_store_.clear();
     data_store_.clear();
+    block_apex_root_digests_.clear();
     decompression_dir_ = decompression_dir;
     block_disk_path_.reset();
   }
@@ -152,11 +157,18 @@ class ApexFileRepository final {
   android::base::Result<void> ScanBuiltInDir(const std::string& dir);
 
   std::unordered_map<std::string, ApexFile> pre_installed_store_, data_store_;
+
   // Decompression directory which will be used to determine if apex is
   // decompressed or not
   std::string decompression_dir_;
+
   // Disk path where block apexes are read from. AddBlockApex() sets this.
   std::optional<std::string> block_disk_path_;
+
+  // Root digests for block apexes. When specified in block apex config, it
+  // should be used/checked when activating the apex to avoid
+  // TOCTOU(time-of-check to time-of-use).
+  std::unordered_map<std::string, std::string> block_apex_root_digests_;
 };
 
 }  // namespace apex

@@ -170,8 +170,15 @@ Result<void> ApexFileRepository::AddBlockApex(
       return Error() << "public key doesn't match: " << apex_path;
     }
 
-    // APEX should be unique.
     const std::string& name = apex_file->GetManifest().name();
+
+    // When metadata specifies the root digest of the apex, it should be used
+    // when activating the apex. So we need to keep it.
+    if (apex_config.root_digest() != "") {
+      block_apex_root_digests_.emplace(name, apex_config.root_digest());
+    }
+
+    // APEX should be unique.
     auto it = pre_installed_store_.find(name);
     if (it != pre_installed_store_.end()) {
       return Error() << "duplicate found in " << it->second.GetPath();
@@ -277,6 +284,15 @@ Result<const std::string> ApexFileRepository::GetDataPath(
     return Error() << "No data apex found for package " << name;
   }
   return it->second.GetPath();
+}
+
+std::optional<std::string> ApexFileRepository::GetBlockApexRootDigest(
+    const std::string& name) const {
+  auto it = block_apex_root_digests_.find(name);
+  if (it == block_apex_root_digests_.end()) {
+    return std::nullopt;
+  }
+  return it->second;
 }
 
 bool ApexFileRepository::HasPreInstalledVersion(const std::string& name) const {
