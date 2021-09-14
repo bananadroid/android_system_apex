@@ -181,10 +181,11 @@ class ApexdUnitTest : public ::testing::Test {
   }
 
   std::string AddBlockApex(const std::string& apex_name,
-                           std::optional<std::string> pubkey = std::nullopt) {
+                           const std::string& public_key = "",
+                           const std::string& root_digest = "") {
     auto apex_path = vm_payload_disk_ + "2";  // second partition
     auto apex_file = GetTestFile(apex_name);
-    WriteMetadata(apex_file, std::move(pubkey));
+    WriteMetadata(apex_file, public_key, root_digest);
     // loop_devices_ will be disposed after each test
     loop_devices_.push_back(*WriteBlockApex(apex_file, apex_path));
     return apex_path;
@@ -231,14 +232,14 @@ class ApexdUnitTest : public ::testing::Test {
     DeleteDirContent(ApexSession::GetSessionsDir());
   }
   void WriteMetadata(const std::string& apex_file,
-                     std::optional<std::string> pubkey) {
+                     const std::string& public_key,
+                     const std::string& root_digest) {
     android::microdroid::Metadata metadata;
 
     auto apex = metadata.add_apexes();
     apex->set_name("apex");
-    if (pubkey.has_value()) {
-      apex->set_public_key(*pubkey);
-    }
+    apex->set_public_key(public_key);
+    apex->set_root_digest(root_digest);
 
     std::ofstream out(vm_payload_metadata_path_);
     android::microdroid::WriteMetadata(metadata, out);
@@ -3963,7 +3964,7 @@ TEST_F(ApexdMountTest, OnStartInVmModeFailsWithWrongPubkey) {
   // Need to call InitializeVold before calling OnStart
   InitializeVold(&checkpoint_interface);
 
-  AddBlockApex("apex.apexd_test.apex", "wrong pubkey");
+  AddBlockApex("apex.apexd_test.apex", /*public_key=*/"wrong pubkey");
 
   ASSERT_EQ(1, OnStartInVmMode());
 }
@@ -3981,6 +3982,17 @@ TEST_F(ApexdMountTest, GetActivePackagesReturningBlockApexesAsWell) {
   auto active_apexes = GetActivePackages();
   ASSERT_EQ(1u, active_apexes.size());
   ASSERT_EQ(path1, active_apexes[0].GetPath());
+}
+
+TEST_F(ApexdMountTest, OnStartInVmModeFailsWithWrongRootDigest) {
+  MockCheckpointInterface checkpoint_interface;
+  // Need to call InitializeVold before calling OnStart
+  InitializeVold(&checkpoint_interface);
+
+  AddBlockApex("apex.apexd_test.apex", /*public_key=*/"",
+               /*root_digest=*/"wrong root digest");
+
+  ASSERT_EQ(1, OnStartInVmMode());
 }
 
 class ApexActivationFailureTests : public ApexdMountTest {};
