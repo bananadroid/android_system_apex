@@ -1639,29 +1639,6 @@ TEST_F(ApexServiceRevertTest, RevertFailedStateRevertAttemptFails) {
   ASSERT_THAT(session_info, SessionInfoEq(expected));
 }
 
-TEST_F(ApexServiceRevertTest, RevertStoresCrashingNativeProcess) {
-  PrepareTestApexForInstall installer(GetTestFile("apex.apexd_test_v2.apex"));
-  if (!installer.Prepare()) {
-    return;
-  }
-  auto session = ApexSession::CreateSession(1543);
-  ASSERT_TRUE(IsOk(session));
-  ASSERT_TRUE(IsOk(session->UpdateStateAndCommit(SessionState::ACTIVATED)));
-
-  // Make sure /data/apex/active is non-empty.
-  ASSERT_TRUE(IsOk(service_->stagePackages({installer.test_file})));
-  std::string native_process = "test_process";
-  // TODO(b/199342995) We shouldn't need this in apexservice_test.cpp
-  // For now ::android::apex::RevertActiveSession() relies on global config.
-  android::apex::SetConfig(android::apex::kDefaultConfig);
-  // TODO(ioffe): this is calling into internals of apexd which makes test quite
-  //  britle. With some refactoring we should be able to call binder api, or
-  //  make this a unit test of apexd.cpp.
-  Result<void> res = ::android::apex::RevertActiveSessions(native_process, "");
-  session = ApexSession::GetSession(1543);
-  ASSERT_EQ(session->GetCrashingNativeProcess(), native_process);
-}
-
 static pid_t GetPidOf(const std::string& name) {
   char buf[1024];
   const std::string cmd = std::string("pidof -s ") + name;
