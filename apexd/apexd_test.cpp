@@ -4296,5 +4296,21 @@ TEST_F(ApexdUnitTest, UnstagePackagesFailPreInstalledApex) {
   ASSERT_EQ(0, access(file_path2.c_str(), F_OK));
 }
 
+TEST_F(ApexdUnitTest, RevertStoresCrashingNativeProcess) {
+  MockCheckpointInterface checkpoint_interface;
+  checkpoint_interface.SetSupportsCheckpoint(true);
+  InitializeVold(&checkpoint_interface);
+
+  auto apex_session = CreateStagedSession("apex.apexd_test.apex", 1543);
+  ASSERT_THAT(apex_session, Ok());
+  ASSERT_THAT(apex_session->UpdateStateAndCommit(SessionState::ACTIVATED),
+              Ok());
+
+  ASSERT_THAT(RevertActiveSessions("test_process", ""), Ok());
+  apex_session = ApexSession::GetSession(1543);
+  ASSERT_THAT(apex_session, Ok());
+  ASSERT_EQ(apex_session->GetCrashingNativeProcess(), "test_process");
+}
+
 }  // namespace apex
 }  // namespace android
