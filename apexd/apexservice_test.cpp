@@ -76,6 +76,7 @@ using android::base::EndsWith;
 using android::base::Error;
 using android::base::Join;
 using android::base::Result;
+using android::base::SetProperty;
 using android::base::StartsWith;
 using android::base::StringPrintf;
 using android::base::unique_fd;
@@ -103,6 +104,9 @@ class ApexServiceTest : public ::testing::Test {
     if (!android::base::GetBoolProperty("ro.apex.updatable", false)) {
       GTEST_SKIP() << "Skipping test because device doesn't support APEX";
     }
+
+    // Enable VERBOSE logging to simplifying debugging
+    SetProperty("log.tag.apexd", "VERBOSE");
 
     using android::IBinder;
     using android::IServiceManager;
