@@ -28,7 +28,6 @@
 #include "apexd_checkpoint.h"
 #include "apexd_lifecycle.h"
 #include "apexd_loop.h"
-#include "apexd_prepostinstall.h"
 #include "apexd_rollback_utils.h"
 #include "apexd_session.h"
 #include "apexd_utils.h"
