@@ -95,8 +95,6 @@ class ApexService : public BnApexService {
   BinderStatus getActivePackage(const std::string& package_name,
                                 ApexInfo* aidl_return) override;
   BinderStatus getAllPackages(std::vector<ApexInfo>* aidl_return) override;
-  BinderStatus preinstallPackages(
-      const std::vector<std::string>& paths) override;
   BinderStatus abortStagedSession(int session_id) override;
   BinderStatus revertActiveSessions() override;
   BinderStatus resumeRevertIfNeeded() override;
@@ -523,30 +521,6 @@ BinderStatus ApexService::installAndActivatePackage(
   return BinderStatus::ok();
 }
 
-BinderStatus ApexService::preinstallPackages(
-    const std::vector<std::string>& paths) {
-  BinderStatus debug_check = CheckDebuggable("preinstallPackages");
-  if (!debug_check.isOk()) {
-    return debug_check;
-  }
-
-  auto root_check = CheckCallerIsRoot("preinstallPackages");
-  if (!root_check.isOk()) {
-    return root_check;
-  }
-
-  Result<void> res = ::android::apex::PreinstallPackages(paths);
-  if (res.ok()) {
-    return BinderStatus::ok();
-  }
-
-  LOG(ERROR) << "Failed to preinstall packages "
-             << android::base::Join(paths, ',') << ": " << res.error();
-  return BinderStatus::fromExceptionCode(
-      BinderStatus::EX_SERVICE_SPECIFIC,
-      String8(res.error().message().c_str()));
-}
-
 BinderStatus ApexService::abortStagedSession(int session_id) {
   auto check = CheckCallerSystemOrRoot("abortStagedSession");
   if (!check.isOk()) {
@@ -848,9 +822,6 @@ status_t ApexService::shellCommand(int in, int out, int err,
         << "  deactivatePackage [package_path] - deactivate package from the "
            "given path"
         << std::endl
-        << "  preinstallPackages [package_path1] ([package_path2]...) - run "
-           "pre-install hooks of the given packages"
-        << std::endl
         << "  getStagedSessionInfo [sessionId] - displays information about a "
            "given session previously submitted"
         << std::endl
@@ -1057,28 +1028,6 @@ status_t ApexService::shellCommand(int in, int out, int err,
       return OK;
     }
     std::string msg = StringLog() << "Failed to submit session: "
-                                  << status.toString8().string() << std::endl;
-    dprintf(err, "%s", msg.c_str());
-    return BAD_VALUE;
-  }
-
-  if (cmd == String16("preinstallPackages")) {
-    if (args.size() < 2) {
-      print_help(err,
-                 "preinstallPackages requires at least"
-                 " one package_path");
-      return BAD_VALUE;
-    }
-    std::vector<std::string> pkgs;
-    pkgs.reserve(args.size() - 1);
-    for (size_t i = 1; i != args.size(); ++i) {
-      pkgs.emplace_back(String8(args[i]).string());
-    }
-    BinderStatus status = preinstallPackages(pkgs);
-    if (status.isOk()) {
-      return OK;
-    }
-    std::string msg = StringLog() << "Failed to preinstall package(s): "
                                   << status.toString8().string() << std::endl;
     dprintf(err, "%s", msg.c_str());
     return BAD_VALUE;

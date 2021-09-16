@@ -84,7 +84,6 @@ using android::dm::DeviceMapper;
 using ::apex::proto::ApexManifest;
 using ::apex::proto::SessionState;
 using ::testing::EndsWith;
-using ::testing::HasSubstr;
 using ::testing::Not;
 using ::testing::SizeIs;
 using ::testing::UnorderedElementsAre;
@@ -290,26 +289,6 @@ class ApexServiceTest : public ::testing::Test {
         << "Failed to list " << path << " : " << status.error();
     std::sort(ret.begin(), ret.end());
     return ret;
-  }
-
-  static std::string GetLogcat() {
-    // For simplicity, log to file and read it.
-    std::string file = GetTestFile("logcat.tmp.txt");
-    std::vector<std::string> args{
-        "/system/bin/logcat",
-        "-d",
-        "-f",
-        file,
-    };
-    auto res = ForkAndRun(args);
-    CHECK(res.ok()) << res.error();
-
-    std::string data;
-    CHECK(android::base::ReadFileToString(file, &data));
-
-    unlink(file.c_str());
-
-    return data;
   }
 
   static void DeleteIfExists(const std::string& path) {
@@ -843,76 +822,6 @@ TEST_F(ApexServiceTest, GetAllPackages) {
         << package_string << " should " << (should_be_factory ? "" : "not ")
         << "be factory";
   }
-}
-
-class ApexServicePrePostInstallTest : public ApexServiceTest {
- public:
-  template <typename Fn>
-  void RunPrePost(Fn fn, const std::vector<std::string>& apex_names,
-                  const char* test_message, bool expect_success = true) {
-    // Using unique_ptr is just the easiest here.
-    using InstallerUPtr = std::unique_ptr<PrepareTestApexForInstall>;
-    std::vector<InstallerUPtr> installers;
-    std::vector<std::string> pkgs;
-
-    for (const std::string& apex_name : apex_names) {
-      InstallerUPtr installer(
-          new PrepareTestApexForInstall(GetTestFile(apex_name)));
-      if (!installer->Prepare()) {
-        return;
-      }
-      pkgs.push_back(installer->test_file);
-      installers.emplace_back(std::move(installer));
-    }
-    android::binder::Status st = (service_.get()->*fn)(pkgs);
-    if (expect_success) {
-      ASSERT_TRUE(IsOk(st));
-    } else {
-      ASSERT_FALSE(IsOk(st));
-    }
-
-    if (test_message != nullptr) {
-      std::string logcat = GetLogcat();
-      EXPECT_THAT(logcat, HasSubstr(test_message));
-    }
-
-    // Ensure that the package is neither active nor mounted.
-    for (const InstallerUPtr& installer : installers) {
-      Result<bool> active = IsActive(installer->package, installer->version,
-                                     installer->test_file);
-      ASSERT_TRUE(IsOk(active));
-      EXPECT_FALSE(*active);
-    }
-    for (const InstallerUPtr& installer : installers) {
-      Result<ApexFile> apex = ApexFile::Open(installer->test_input);
-      ASSERT_TRUE(IsOk(apex));
-      std::string path =
-          apexd_private::GetPackageMountPoint(apex->GetManifest());
-      std::string entry = std::string("[dir]").append(path);
-      std::vector<std::string> slash_apex = ListDir(kApexRoot);
-      auto it = std::find(slash_apex.begin(), slash_apex.end(), entry);
-      EXPECT_TRUE(it == slash_apex.end()) << Join(slash_apex, ',');
-    }
-  }
-};
-
-TEST_F(ApexServicePrePostInstallTest, Preinstall) {
-  RunPrePost(&IApexService::preinstallPackages,
-             {"apex.apexd_test_preinstall.apex"}, "sh      : PreInstall Test");
-}
-
-TEST_F(ApexServicePrePostInstallTest, MultiPreinstall) {
-  constexpr const char* kLogcatText =
-      "sh      : /apex/com.android.apex.test_package/etc/sample_prebuilt_file";
-  RunPrePost(&IApexService::preinstallPackages,
-             {"apex.apexd_test_preinstall.apex", "apex.apexd_test.apex"},
-             kLogcatText);
-}
-
-TEST_F(ApexServicePrePostInstallTest, PreinstallFail) {
-  RunPrePost(&IApexService::preinstallPackages,
-             {"apex.apexd_test_prepostinstall.fail.apex"},
-             /* test_message= */ nullptr, /* expect_success= */ false);
 }
 
 TEST_F(ApexServiceTest, SubmitSingleSessionTestSuccess) {
