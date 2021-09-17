@@ -1605,8 +1605,8 @@ std::vector<Result<void>> ActivateApexWorker(
     bool reuse_device = mode == ActivationMode::kBootMode;
     auto res = ActivatePackageImpl(*apex, device_name, reuse_device);
     if (!res.ok()) {
-      ret.push_back(Error() << "Failed to activate " << apex->GetPath() << " : "
-                            << res.error());
+      ret.push_back(Error() << "Failed to activate " << apex->GetPath() << "("
+                            << device_name << "): " << res.error());
     } else {
       ret.push_back({});
     }
