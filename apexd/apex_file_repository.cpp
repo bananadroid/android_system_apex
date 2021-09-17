@@ -181,7 +181,8 @@ Result<void> ApexFileRepository::AddBlockApex(
     // APEX should be unique.
     auto it = pre_installed_store_.find(name);
     if (it != pre_installed_store_.end()) {
-      return Error() << "duplicate found in " << it->second.GetPath();
+      return Error() << "duplicate of " << name << " found in "
+                     << it->second.GetPath();
     }
 
     pre_installed_store_.emplace(name, std::move(*apex_file));
