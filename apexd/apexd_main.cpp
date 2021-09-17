@@ -25,7 +25,6 @@
 #include "apexd.h"
 #include "apexd_checkpoint_vold.h"
 #include "apexd_lifecycle.h"
-#include "apexd_prepostinstall.h"
 #include "apexservice.h"
 
 #include <android-base/properties.h>
@@ -33,16 +32,6 @@
 namespace {
 
 int HandleSubcommand(char** argv) {
-  if (strcmp("--pre-install", argv[1]) == 0) {
-    LOG(INFO) << "Preinstall subcommand detected";
-    return android::apex::RunPreInstall(argv);
-  }
-
-  if (strcmp("--post-install", argv[1]) == 0) {
-    LOG(INFO) << "Postinstall subcommand detected";
-    return android::apex::RunPostInstall(argv);
-  }
-
   if (strcmp("--bootstrap", argv[1]) == 0) {
     LOG(INFO) << "Bootstrap subcommand detected";
     return android::apex::OnBootstrap();
