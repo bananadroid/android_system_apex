@@ -142,37 +142,6 @@ class ApexServiceTest : public ::testing::Test {
 
   static bool IsSelinuxEnforced() { return 0 != security_getenforce(); }
 
-  Result<bool> IsActive(const std::string& name) {
-    std::vector<ApexInfo> list;
-    android::binder::Status status = service_->getActivePackages(&list);
-    if (!status.isOk()) {
-      return Error() << "Failed to check if " << name
-                     << " is active : " << status.exceptionMessage().c_str();
-    }
-    for (const ApexInfo& apex : list) {
-      if (apex.moduleName == name) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  Result<bool> IsActive(const std::string& name, int64_t version,
-                        const std::string& path) {
-    std::vector<ApexInfo> list;
-    android::binder::Status status = service_->getActivePackages(&list);
-    if (status.isOk()) {
-      for (const ApexInfo& p : list) {
-        if (p.moduleName == name && p.versionCode == version &&
-            p.modulePath == path) {
-          return true;
-        }
-      }
-      return false;
-    }
-    return Error() << status.exceptionMessage().c_str();
-  }
-
   Result<std::vector<ApexInfo>> GetAllPackages() {
     std::vector<ApexInfo> list;
     android::binder::Status status = service_->getAllPackages(&list);
@@ -205,16 +174,6 @@ class ApexServiceTest : public ::testing::Test {
     }
 
     return Error() << status.toString8().c_str();
-  }
-
-  Result<ApexInfo> GetActivePackage(const std::string& name) {
-    ApexInfo package;
-    android::binder::Status status = service_->getActivePackage(name, &package);
-    if (status.isOk()) {
-      return package;
-    }
-
-    return Error() << status.exceptionMessage().c_str();
   }
 
   std::string GetPackageString(const ApexInfo& p) {
