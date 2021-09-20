@@ -44,49 +44,6 @@
 namespace android {
 namespace apex {
 
-inline int WaitChild(pid_t pid) {
-  int status;
-  pid_t got_pid = TEMP_FAILURE_RETRY(waitpid(pid, &status, 0));
-
-  if (got_pid != pid) {
-    PLOG(WARNING) << "waitpid failed: wanted " << pid << ", got " << got_pid;
-    return 1;
-  }
-
-  if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
-    return 0;
-  } else {
-    return status;
-  }
-}
-
-inline android::base::Result<void> ForkAndRun(
-    const std::vector<std::string>& args) {
-  LOG(DEBUG) << "Forking : " << android::base::Join(args, " ");
-  std::vector<const char*> argv;
-  argv.resize(args.size() + 1, nullptr);
-  std::transform(args.begin(), args.end(), argv.begin(),
-                 [](const std::string& in) { return in.c_str(); });
-
-  pid_t pid = fork();
-  if (pid == -1) {
-    // Fork failed.
-    return android::base::ErrnoError() << "Unable to fork";
-  }
-
-  if (pid == 0) {
-    execv(argv[0], const_cast<char**>(argv.data()));
-    PLOG(ERROR) << "execv failed";
-    _exit(1);
-  }
-
-  int rc = WaitChild(pid);
-  if (rc != 0) {
-    return android::base::Error() << "Failed run: status=" << rc;
-  }
-  return {};
-}
-
 template <typename Fn>
 android::base::Result<void> WalkDir(const std::string& path, Fn fn) {
   namespace fs = std::filesystem;
