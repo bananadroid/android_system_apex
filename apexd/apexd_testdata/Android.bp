@@ -105,7 +105,7 @@ genrule {
   name: "gen_key_mismatch_capex",
   out: ["com.android.apex.compressed_different_key.capex"],
   srcs: [":apex.apexd_test_no_inst_key"],
-  tools: ["soong_zip", "zipalign", "conv_apex_manifest", "apex_compression_tool"],
+  tools: ["soong_zip", "zipalign", "conv_apex_manifest", "apex_compression_tool", "avbtool"],
   cmd: "unzip -q $(in) -d $(genDir) && " +
        "$(location conv_apex_manifest) setprop name com.android.apex.compressed $(genDir)/apex_manifest.pb && " +
        "$(location soong_zip) -d -C $(genDir) -D $(genDir) " +
@@ -113,8 +113,9 @@ genrule {
        "-o $(genDir)/unaligned.apex && " +
        "$(location zipalign) -f 4096 $(genDir)/unaligned.apex " +
        "$(genDir)/com.android.apex.compressed_different_key.apex && " +
+       "HOST_OUT_BIN=$$(dirname $(location apex_compression_tool)) && " +
        "$(location apex_compression_tool) compress " +
-       "--apex_compression_tool_path='out/soong/host/linux-x86/bin:prebuilts/sdk/tools/linux/bin' " +
+       "--apex_compression_tool_path=\"$$HOST_OUT_BIN\" " +
        "--input=$(genDir)/com.android.apex.compressed_different_key.apex " +
        "--output=$(genDir)/com.android.apex.compressed_different_key.capex"
 }
