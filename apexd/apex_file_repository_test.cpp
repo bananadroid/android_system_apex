@@ -635,9 +635,15 @@ TEST_F(ApexFileRepositoryTestAddBlockApex, GetBlockApexRootDigest) {
   const std::string metadata_partition_path = test_dir.path + "/vdc1"s;
   const std::string apex_foo_path = test_dir.path + "/vdc2"s;
 
+  // root digest is stored as bytes in metadata and as hexadecimal in
+  // ApexFileRepository
+  const std::string root_digest = "root_digest";
+  const std::string hex_root_digest = BytesToHex(
+      reinterpret_cast<const uint8_t*>(root_digest.data()), root_digest.size());
+
   // metadata lists "foo"
   PayloadMetadata(metadata_partition_path)
-      .apex(test_apex_foo, /*public_key=*/"", /*root_digest=*/"root_digest");
+      .apex(test_apex_foo, /*public_key=*/"", root_digest);
   auto loop_device1 = WriteBlockApex(test_apex_foo, apex_foo_path);
 
   // call ApexFileRepository::AddBlockApex()
@@ -645,7 +651,7 @@ TEST_F(ApexFileRepositoryTestAddBlockApex, GetBlockApexRootDigest) {
   auto status = instance.AddBlockApex(metadata_partition_path);
   ASSERT_TRUE(IsOk(status));
 
-  ASSERT_EQ("root_digest",
+  ASSERT_EQ(hex_root_digest,
             instance.GetBlockApexRootDigest("com.android.apex.test_package"));
 }
 
