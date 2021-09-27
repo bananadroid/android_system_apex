@@ -535,9 +535,10 @@ Result<MountedApexData> MountPackageImpl(const ApexFile& apex,
         instance.GetBlockApexRootDigest(apex.GetManifest().name());
     if (root_digest.has_value() &&
         root_digest.value() != verity_data->root_digest) {
-      return Error()
-             << "Failed to verify Apex Verity data for " << full_path
-             << ": root digest mismatches with the one specified in config";
+      return Error() << "Failed to verify Apex Verity data for " << full_path
+                     << ": root digest (" << verity_data->root_digest
+                     << ") mismatches with the one (" << root_digest.value()
+                     << ") specified in config";
     }
   }
 
