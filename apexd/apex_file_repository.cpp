@@ -18,8 +18,6 @@
 
 #include "apex_file_repository.h"
 
-#include <unordered_map>
-
 #include <android-base/file.h>
 #include <android-base/properties.h>
 #include <android-base/result.h>
@@ -27,9 +25,12 @@
 #include <android-base/strings.h>
 #include <microdroid/metadata.h>
 
+#include <unordered_map>
+
 #include "apex_constants.h"
 #include "apex_file.h"
 #include "apexd_utils.h"
+#include "apexd_verity.h"
 
 using android::base::EndsWith;
 using android::base::Error;
@@ -174,8 +175,11 @@ Result<void> ApexFileRepository::AddBlockApex(
 
     // When metadata specifies the root digest of the apex, it should be used
     // when activating the apex. So we need to keep it.
-    if (apex_config.root_digest() != "") {
-      block_apex_root_digests_.emplace(name, apex_config.root_digest());
+    if (auto root_digest = apex_config.root_digest(); root_digest != "") {
+      auto hex_root_digest =
+          BytesToHex(reinterpret_cast<const uint8_t*>(root_digest.data()),
+                     root_digest.size());
+      block_apex_root_digests_.emplace(name, std::move(hex_root_digest));
     }
 
     // APEX should be unique.
