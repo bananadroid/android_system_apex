@@ -16,25 +16,25 @@
 
 #include "apex_file.h"
 
-#include <fcntl.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <unistd.h>
-
-#include <filesystem>
-#include <fstream>
-#include <span>
-
 #include <android-base/file.h>
 #include <android-base/logging.h>
 #include <android-base/scopeguard.h>
 #include <android-base/strings.h>
 #include <android-base/unique_fd.h>
+#include <fcntl.h>
 #include <libavb/libavb.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 #include <ziparchive/zip_archive.h>
+
+#include <filesystem>
+#include <fstream>
+#include <span>
 
 #include "apex_constants.h"
 #include "apexd_utils.h"
+#include "apexd_verity.h"
 
 using android::base::borrowed_fd;
 using android::base::ErrnoError;
@@ -181,16 +181,6 @@ Result<ApexFile> ApexFile::Open(const std::string& path) {
 namespace {
 
 static constexpr int kVbMetaMaxSize = 64 * 1024;
-
-std::string BytesToHex(const uint8_t* bytes, size_t bytes_len) {
-  std::ostringstream s;
-
-  s << std::hex << std::setfill('0');
-  for (size_t i = 0; i < bytes_len; i++) {
-    s << std::setw(2) << static_cast<int>(bytes[i]);
-  }
-  return s.str();
-}
 
 std::string GetSalt(const AvbHashtreeDescriptor& desc,
                     const uint8_t* trailing_data) {
