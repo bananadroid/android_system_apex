@@ -138,7 +138,6 @@ static const std::vector<std::string> kBootstrapApexes = ([]() {
       "com.android.i18n",
       "com.android.runtime",
       "com.android.tzdata",
-      "com.android.os.statsd",
   };
 
   auto vendor_vndk_ver = GetProperty("ro.vndk.version", "");
@@ -1921,12 +1920,6 @@ void RestorePreRestoreSnapshotsIfPresent(const std::string& base_dir,
         LOG(ERROR) << "Restore of pre-restore snapshot failed for " << apex_name
                    << ": " << result.error();
       }
-    }
-
-    Result<void> result = DeleteDir(pre_restore_snapshot_path);
-    if (!result.ok()) {
-      LOG(ERROR) << "Deletion of pre-restore snapshot failed: "
-                 << result.error();
     }
   }
 }

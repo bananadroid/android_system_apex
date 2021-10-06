@@ -53,10 +53,10 @@ public class ApexdHostTest extends BaseHostJUnit4Test  {
 
     private final InstallUtilsHost mHostUtils = new InstallUtilsHost(this);
 
-    private boolean mWasAdbRoot = false;
-
     @Rule
     public AbandonSessionsRule mHostTestRule = new AbandonSessionsRule(this);
+
+    private boolean mWasAdbRoot = false;
 
     @Before
     public void setUp() throws Exception {
