@@ -435,8 +435,17 @@ BinderStatus ApexService::getStagedApexInfos(
         String8(files.error().message().c_str()));
   }
 
+  // Retrieve classpath information
+  auto class_path = ::android::apex::MountAndDeriveClassPath(*files);
   for (const auto& apex_file : *files) {
     ApexInfo apex_info = GetApexInfo(apex_file);
+    auto package_name = apex_info.moduleName;
+    apex_info.hasBootClassPathJars =
+        class_path->HasBootClassPathJars(package_name);
+    apex_info.hasDex2OatBootClassPathJars =
+        class_path->HasDex2OatBootClassPathJars(package_name);
+    apex_info.hasSystemServerClassPathJars =
+        class_path->HasSystemServerClassPathJars(package_name);
     aidl_return->push_back(std::move(apex_info));
   }
 
