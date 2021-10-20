@@ -203,7 +203,7 @@ static Result<uint32_t> BlockDeviceQueueDepth(const std::string& file_path) {
   return strtol(nr_tags.c_str(), NULL, 0);
 }
 
-// Set 'nr_requests' of `loop_device_path` to two times the queue depth of
+// Set 'nr_requests' of `loop_device_path` equal to the queue depth of
 // the block device backing `file_path`.
 Result<void> ConfigureQueueDepth(const std::string& loop_device_path,
                                  const std::string& file_path) {
