@@ -1,15 +1,22 @@
 #!/bin/sh
 
-# Creates an apex stub in a subdirectory named after the package name. Edit the APEX_NAME variable
-# before running.
+# Creates an apex stub in a subdirectory named after the input package name.
 
-APEX_NAME=com.android.yourpackagenamehere
 
+APEX_NAME=$1
+if [ -z ${APEX_NAME} ]
+then
+   echo "Missing apex package name"
+   echo "Usage $0 apex_package_name"
+   exit -1
+fi
+
+YEAR=$(date +%Y)
 mkdir ${APEX_NAME}
 cd ${APEX_NAME}
 
 cat > Android.bp <<EOF
-// Copyright (C) 2020 The Android Open Source Project
+// Copyright (C) ${YEAR} The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,6 +29,7 @@ cat > Android.bp <<EOF
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 apex_key {
     name: "${APEX_NAME}.key",
     public_key: "${APEX_NAME}.avbpubkey",
