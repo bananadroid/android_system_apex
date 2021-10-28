@@ -34,18 +34,22 @@ namespace apex {
  * parsing its string output into a structured object.
  */
 class ClassPath {
+  static constexpr const char* kSdkExtModuleName = "com.android.sdkext";
+
  public:
   static android::base::Result<ClassPath> DeriveClassPath(
-      const std::vector<std::string>& temp_mounted_apex_paths);
+      const std::vector<std::string>& temp_mounted_apex_paths,
+      const std::string& sdkext_module_name = kSdkExtModuleName);
 
   bool HasBootClassPathJars(const std::string& package);
   bool HasDex2OatBootClassPathJars(const std::string& package);
   bool HasSystemServerClassPathJars(const std::string& package);
 
- private:
+  // Exposed for testing only
   static android::base::Result<ClassPath> ParseFromFile(
       const std::string& file_path);
 
+ private:
   void AddPackageWithBootClasspathJars(const std::string& package);
   void AddPackageWithDex2OatBootClasspathJars(const std::string& package);
   void AddPackageWithSystemServerClasspathJars(const std::string& package);
