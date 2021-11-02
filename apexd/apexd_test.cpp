@@ -4312,5 +4312,36 @@ TEST_F(ApexdUnitTest, RevertStoresCrashingNativeProcess) {
   ASSERT_EQ(apex_session->GetCrashingNativeProcess(), "test_process");
 }
 
+TEST_F(ApexdUnitTest, MountAndDeriveClasspathNoJar) {
+  AddPreInstalledApex("apex.apexd_test_classpath.apex");
+  ApexFileRepository::GetInstance().AddPreInstalledApex({GetBuiltInDir()});
+
+  // Call MountAndDeriveClassPath
+  auto apex_file = ApexFile::Open(GetTestFile("apex.apexd_test.apex"));
+  auto package_name = apex_file->GetManifest().name();
+  std::vector<ApexFile> apex_files;
+  apex_files.emplace_back(std::move(*apex_file));
+  auto class_path = MountAndDeriveClassPath(apex_files);
+  ASSERT_THAT(class_path, Ok());
+  ASSERT_THAT(class_path->HasBootClassPathJars(package_name), false);
+  ASSERT_THAT(class_path->HasSystemServerClassPathJars(package_name), false);
+}
+
+TEST_F(ApexdUnitTest, MountAndDeriveClassPathJarsPresent) {
+  AddPreInstalledApex("apex.apexd_test_classpath.apex");
+  ApexFileRepository::GetInstance().AddPreInstalledApex({GetBuiltInDir()});
+
+  // Call MountAndDeriveClassPath
+  auto apex_file =
+      ApexFile::Open(GetTestFile("apex.apexd_test_classpath.apex"));
+  auto package_name = apex_file->GetManifest().name();
+  std::vector<ApexFile> apex_files;
+  apex_files.emplace_back(std::move(*apex_file));
+  auto class_path = MountAndDeriveClassPath(apex_files);
+  ASSERT_THAT(class_path, Ok());
+  ASSERT_THAT(class_path->HasBootClassPathJars(package_name), true);
+  ASSERT_THAT(class_path->HasSystemServerClassPathJars(package_name), true);
+}
+
 }  // namespace apex
 }  // namespace android

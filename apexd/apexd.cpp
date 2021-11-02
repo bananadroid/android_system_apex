@@ -1042,10 +1042,12 @@ Result<void> UnmountPackage(const ApexFile& apex, bool allow_latest,
 void SetConfig(const ApexdConfig& config) { gConfig = config; }
 
 Result<void> MountPackage(const ApexFile& apex, const std::string& mount_point,
-                          const std::string& device_name, bool reuse_device) {
-  auto ret = MountPackageImpl(apex, mount_point, device_name,
-                              GetHashTreeFileName(apex, /* is_new= */ false),
-                              /* verify_image = */ false, reuse_device);
+                          const std::string& device_name, bool reuse_device,
+                          bool temp_mount) {
+  auto ret =
+      MountPackageImpl(apex, mount_point, device_name,
+                       GetHashTreeFileName(apex, /* is_new= */ false),
+                       /* verify_image = */ false, reuse_device, temp_mount);
   if (!ret.ok()) {
     return ret.error();
   }
@@ -1295,8 +1297,8 @@ Result<void> ActivatePackageImpl(const ApexFile& apex_file,
       apexd_private::GetPackageMountPoint(manifest);
 
   if (!version_found_mounted) {
-    auto mount_status =
-        MountPackage(apex_file, mount_point, device_name, reuse_device);
+    auto mount_status = MountPackage(apex_file, mount_point, device_name,
+                                     reuse_device, /*temp_mount=*/false);
     if (!mount_status.ok()) {
       return mount_status;
     }
@@ -1404,6 +1406,34 @@ Result<std::vector<ApexFile>> GetStagedApexFiles(
   }
 
   return OpenApexFiles(apex_file_paths);
+}
+
+Result<ClassPath> MountAndDeriveClassPath(
+    const std::vector<ApexFile>& apex_files) {
+  auto guard = android::base::make_scope_guard([&]() {
+    for (const auto& apex : apex_files) {
+      apexd_private::UnmountTempMount(apex);
+    }
+  });
+
+  // Mount the staged apex files
+  std::vector<std::string> temp_mounted_apex_paths;
+  for (const auto& apex : apex_files) {
+    const std::string& temp_mount_point =
+        apexd_private::GetPackageTempMountPoint(apex.GetManifest());
+    const std::string& package_id = GetPackageId(apex.GetManifest());
+    const std::string& temp_device_name = package_id + ".tmp";
+    auto mount_status =
+        MountPackage(apex, temp_mount_point, temp_device_name,
+                     /*reuse_device=*/false, /*temp_mount=*/true);
+    if (!mount_status.ok()) {
+      return mount_status.error();
+    }
+    temp_mounted_apex_paths.push_back(temp_mount_point);
+  }
+
+  // Calculate classpaths of temp mounted staged apexs
+  return ClassPath::DeriveClassPath(temp_mounted_apex_paths);
 }
 
 std::vector<ApexFile> GetActivePackages() {
