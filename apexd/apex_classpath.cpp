@@ -28,21 +28,32 @@
 namespace android {
 namespace apex {
 
+using ::android::base::Error;
+using ::android::base::StringPrintf;
+
 android::base::Result<ClassPath> ClassPath::DeriveClassPath(
-    const std::vector<std::string>& temp_mounted_apex_paths) {
+    const std::vector<std::string>& temp_mounted_apex_paths,
+    const std::string& sdkext_module_name) {
+  if (temp_mounted_apex_paths.empty()) {
+    return Error()
+           << "Invalid argument: There are no APEX to derive claspath from";
+  }
   // Call derive_classpath binary to generate required information
 
   // Prefer using the binary from staged session if possible
-  // TODO(b/187444679): Add unit test for this conditional branch
-  std::string binary_path = "/apex/com.android.sdkext/bin/derive_classpath";
+  std::string apex_of_binary =
+      StringPrintf("/apex/%s", sdkext_module_name.c_str());
   for (const auto& temp_mounted_apex_path : temp_mounted_apex_paths) {
-    if (temp_mounted_apex_path.starts_with("/apex/com.android.sdkext@")) {
-      binary_path = temp_mounted_apex_path + "/bin/derive_classpath";
+    if (temp_mounted_apex_path.starts_with(apex_of_binary + "@")) {
+      apex_of_binary = temp_mounted_apex_path;
+      break;
     }
   }
-  std::string scan_dirs_flag = android::base::StringPrintf(
-      "--scan-dirs=%s",
-      android::base::Join(temp_mounted_apex_paths, ",").c_str());
+  std::string binary_path =
+      StringPrintf("%s/bin/derive_classpath", apex_of_binary.c_str());
+  std::string scan_dirs_flag =
+      StringPrintf("--scan-dirs=%s",
+                   android::base::Join(temp_mounted_apex_paths, ",").c_str());
 
   // Create a temp file to write output
   auto temp_output_path = "/apex/derive_classpath_temp";
@@ -60,8 +71,8 @@ android::base::Result<ClassPath> ClassPath::DeriveClassPath(
   auto rc = logwrap_fork_execvp(arraysize(argv), argv, nullptr, false, LOG_ALOG,
                                 false, nullptr);
   if (rc != 0) {
-    return android::base::Error()
-           << "Running derive_classpath failed; binary path: " + binary_path;
+    return Error() << "Running derive_classpath failed; binary path: " +
+                          binary_path;
   }
 
   return ClassPath::ParseFromFile(temp_output_path);
@@ -79,9 +90,9 @@ android::base::Result<ClassPath> ClassPath::ParseFromFile(
 
   std::string contents;
   auto read_status = android::base::ReadFileToString(file_path, &contents,
-                                                     /*follow_symlink=*/false);
+                                                     /*follow_symlinks=*/false);
   if (!read_status) {
-    return android::base::Error() << "Failed to read classpath info from file";
+    return Error() << "Failed to read classpath info from file";
   }
 
   // Jars in apex have the following format: /apex/<package-name>/*
