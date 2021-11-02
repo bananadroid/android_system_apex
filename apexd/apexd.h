@@ -17,13 +17,14 @@
 #ifndef ANDROID_APEXD_APEXD_H_
 #define ANDROID_APEXD_APEXD_H_
 
+#include <android-base/macros.h>
+#include <android-base/result.h>
+
 #include <ostream>
 #include <string>
 #include <vector>
 
-#include <android-base/macros.h>
-#include <android-base/result.h>
-
+#include "apex_classpath.h"
 #include "apex_constants.h"
 #include "apex_database.h"
 #include "apex_file.h"
@@ -91,6 +92,8 @@ android::base::Result<std::vector<ApexFile>> SubmitStagedSession(
 android::base::Result<std::vector<ApexFile>> GetStagedApexFiles(
     const int session_id,
     const std::vector<int>& child_session_ids) WARN_UNUSED;
+android::base::Result<ClassPath> MountAndDeriveClassPath(
+    const std::vector<ApexFile>&) WARN_UNUSED;
 android::base::Result<void> MarkStagedSessionReady(const int session_id)
     WARN_UNUSED;
 android::base::Result<void> MarkStagedSessionSuccessful(const int session_id)

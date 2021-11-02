@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 The Android Open Source Project
+ * Copyright (C) 2021 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,19 +14,9 @@
  * limitations under the License.
  */
 
-package android.apex;
+package com.android.apex.test;
 
-parcelable ApexInfo {
-    @utf8InCpp String moduleName;
-    @utf8InCpp String modulePath;
-    @utf8InCpp String preinstalledModulePath;
-    long versionCode;
-    @utf8InCpp String versionName;
-    boolean isFactory;
-    boolean isActive;
+public class Test {
 
-    // Populated only for getStagedApex() API
-    boolean hasBootClassPathJars;
-    boolean hasDex2OatBootClassPathJars;
-    boolean hasSystemServerClassPathJars;
+    public Test() {}
 }

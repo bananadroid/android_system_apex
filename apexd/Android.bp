@@ -148,6 +148,7 @@ cc_library_static {
     "libapexd-deps",
   ],
   srcs: [
+    "apex_classpath.cpp",
     "apex_database.cpp",
     "apexd.cpp",
     "apexd_lifecycle.cpp",
@@ -430,6 +431,7 @@ cc_test {
     ":apex.apexd_test_digest",
     ":apex.apexd_test_erofs_digest",
     ":apex.apexd_test_f2fs_digest",
+    ":apex.apexd_test_classpath",
     ":apex.apexd_test_different_app",
     ":apex.apexd_test_no_hashtree",
     ":apex.apexd_test_no_hashtree_2",
