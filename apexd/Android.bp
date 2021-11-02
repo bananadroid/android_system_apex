@@ -486,6 +486,7 @@ cc_test {
     ":test.rebootless_apex_priv_app_in_apex",
   ],
   srcs: [
+    "apex_classpath_test.cpp",
     "apex_database_test.cpp",
     "apex_file_test.cpp",
     "apex_file_repository_test.cpp",
