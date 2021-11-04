@@ -46,6 +46,7 @@ apex {
     manifest: "manifest.json",
     file_contexts: ":apex.test-file_contexts",  // Default, please edit, see go/android-apex-howto
     key: "${APEX_NAME}.key",
+    updatable: false,
 }
 EOF
 
