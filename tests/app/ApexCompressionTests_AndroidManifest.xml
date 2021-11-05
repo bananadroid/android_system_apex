@@ -16,7 +16,7 @@
   -->
 
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-          package="com.android.tests.apex.app" >
+          package="com.android.tests.apex.compression.app" >
 
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
     <application>
@@ -27,7 +27,7 @@
 
 
     <instrumentation android:name="androidx.test.runner.AndroidJUnitRunner"
-                     android:targetPackage="com.android.tests.apex.app"
+                     android:targetPackage="com.android.tests.apex.compression.app"
                      android:label="ApexCompression Test"/>
 
 </manifest>
