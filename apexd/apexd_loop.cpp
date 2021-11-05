@@ -215,6 +215,14 @@ Result<void> ConfigureQueueDepth(const std::string& loop_device_path,
 
   const std::string sysfs_path =
       StringPrintf("/sys/block/%s/queue/nr_requests", loop_device_name.c_str());
+  std::string cur_nr_requests_str;
+  if (!ReadFileToString(sysfs_path, &cur_nr_requests_str)) {
+    return Error() << "Failed to read " << sysfs_path;
+  }
+  uint32_t cur_nr_requests = 0;
+  if (!ParseUint(cur_nr_requests_str.c_str(), &cur_nr_requests))
+    return Error() << "Failed to parse " << cur_nr_requests;
+
   unique_fd sysfs_fd(open(sysfs_path.c_str(), O_RDWR | O_CLOEXEC));
   if (sysfs_fd.get() == -1) {
     return ErrnoErrorf("Failed to open {}", sysfs_path);
@@ -224,8 +232,15 @@ Result<void> ConfigureQueueDepth(const std::string& loop_device_path,
   if (!qd.ok()) {
     return ResultError(qd.error());
   }
-  if (!WriteStringToFd(StringPrintf("%u", *qd), sysfs_fd)) {
-    return ErrnoErrorf("Failed to write to {}", sysfs_path);
+  if (*qd == cur_nr_requests) {
+    return {};
+  }
+  // Only report write failures if reducing the queue depth. Attempts to
+  // increase the queue depth are rejected by the kernel if no I/O scheduler
+  // is associated with the request queue.
+  if (!WriteStringToFd(StringPrintf("%u", *qd), sysfs_fd) &&
+      *qd < cur_nr_requests) {
+    return ErrnoErrorf("Failed to write {} to {}", *qd, sysfs_path);
   }
   return {};
 }
