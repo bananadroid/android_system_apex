@@ -220,8 +220,8 @@ java_test_host {
 
 android_test_helper_app {
     name: "apex_compression_tests_app",
-    manifest: "app/AndroidManifest.xml",
-    srcs: ["app/src/**/*.java"],
+    manifest: "app/ApexCompressionTests_AndroidManifest.xml",
+    srcs: ["app/src/**/ApexCompressionTests.java"],
     static_libs: ["androidx.test.rules", "cts-install-lib", "cts-rollback-lib", "testng"],
     test_suites: ["general-tests"],
     java_resources: [

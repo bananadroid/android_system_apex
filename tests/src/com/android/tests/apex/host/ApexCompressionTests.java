@@ -91,7 +91,7 @@ public class ApexCompressionTests extends BaseHostJUnit4Test {
      * For example, <code>runPhase("testApkOnlyEnableRollback");</code>
      */
     private void runPhase(String phase) throws Exception {
-        assertTrue(runDeviceTests("com.android.tests.apex.app",
+        assertTrue(runDeviceTests("com.android.tests.apex.compression.app",
                 "com.android.tests.apex.app.ApexCompressionTests",
                 phase));
     }
