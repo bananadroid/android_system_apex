@@ -222,6 +222,9 @@ android::apex::MountedApexDatabase& GetApexDatabaseForTesting();
 // TODO(ioffe): add more documentation.
 android::base::Result<ApexFile> InstallPackage(const std::string& package_path);
 
+// Exposed for testing.
+android::base::Result<int> AddBlockApex(ApexFileRepository& instance);
+
 }  // namespace apex
 }  // namespace android
 
