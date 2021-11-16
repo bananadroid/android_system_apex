@@ -40,24 +40,6 @@ using android::base::Result;
 namespace android {
 namespace apex {
 
-std::string ConsumeApexPackageSuffix(const std::string& path) {
-  std::string_view path_view(path);
-  android::base::ConsumeSuffix(&path_view, kApexPackageSuffix);
-  android::base::ConsumeSuffix(&path_view, kCompressedApexPackageSuffix);
-  return std::string(path_view);
-}
-
-std::string GetApexSelectFilenameFromProp(
-    const std::vector<std::string>& prefixes, const std::string& apex_name) {
-  for (const std::string& prefix : prefixes) {
-    const std::string& filename = GetProperty(prefix + apex_name, "");
-    if (filename != "") {
-      return ConsumeApexPackageSuffix(filename);
-    }
-  }
-  return "";
-}
-
 Result<void> ApexFileRepository::ScanBuiltInDir(const std::string& dir) {
   LOG(INFO) << "Scanning " << dir << " for pre-installed ApexFiles";
   if (access(dir.c_str(), F_OK) != 0 && errno == ENOENT) {
@@ -80,59 +62,6 @@ Result<void> ApexFileRepository::ScanBuiltInDir(const std::string& dir) {
     }
 
     const std::string& name = apex_file->GetManifest().name();
-
-    // Check if this APEX name is treated as a multi-install APEX.
-    //
-    // Note: apexd is a oneshot service which runs at boot, but can be restarted
-    // when needed (such as staging an APEX update). If a multi-install select
-    // property changes between boot and when apexd restarts, the LOG messages
-    // below will report the version that will be activated on next reboot,
-    // which may differ from the currently-active version.
-    std::string select_filename = GetApexSelectFilenameFromProp(
-        multi_install_select_prop_prefixes_, name);
-    if (!select_filename.empty()) {
-      std::string path;
-      if (!android::base::Realpath(apex_file->GetPath(), &path)) {
-        LOG(ERROR) << "Unable to resolve realpath of APEX with path "
-                   << apex_file->GetPath();
-        continue;
-      }
-      if (enforce_multi_install_partition_ &&
-          !android::base::StartsWith(path, "/vendor/apex/")) {
-        LOG(ERROR) << "Multi-install APEX " << path
-                   << " can only be preinstalled on /vendor/apex/.";
-        continue;
-      }
-
-      auto& keys = multi_install_public_keys_[name];
-      keys.insert(apex_file->GetBundledPublicKey());
-      if (keys.size() > 1) {
-        LOG(ERROR) << "Multi-install APEXes for " << name
-                   << " have different public keys.";
-        // If any versions of a multi-installed APEX differ in public key,
-        // then no version should be installed.
-        if (auto it = pre_installed_store_.find(name);
-            it != pre_installed_store_.end()) {
-          pre_installed_store_.erase(it);
-        }
-        continue;
-      }
-
-      if (ConsumeApexPackageSuffix(android::base::Basename(path)) ==
-          select_filename) {
-        LOG(INFO) << "Found APEX at path " << path << " for multi-install APEX "
-                  << name;
-        // Add the APEX file to the store if its filename matches the property.
-        pre_installed_store_.emplace(name, std::move(*apex_file));
-      } else {
-        LOG(INFO) << "Skipping APEX at path " << path
-                  << " because it does not match expected multi-install"
-                  << " APEX property for " << name;
-      }
-
-      continue;
-    }
-
     auto it = pre_installed_store_.find(name);
     if (it == pre_installed_store_.end()) {
       pre_installed_store_.emplace(name, std::move(*apex_file));
@@ -157,7 +86,6 @@ Result<void> ApexFileRepository::ScanBuiltInDir(const std::string& dir) {
                  << " (" << name << ") has unexpectedly changed";
     }
   }
-  multi_install_public_keys_.clear();
   return {};
 }
 
@@ -292,19 +220,10 @@ Result<void> ApexFileRepository::AddDataApex(const std::string& data_dir) {
 
     const std::string& name = apex_file->GetManifest().name();
     if (!HasPreInstalledVersion(name)) {
-      LOG(ERROR) << "Skipping " << file << " : no preinstalled apex";
+      LOG(ERROR) << "Skipping " << file << " : no preisntalled apex";
       // Ignore data apex without corresponding pre-installed apex
       continue;
     }
-
-    std::string select_filename = GetApexSelectFilenameFromProp(
-        multi_install_select_prop_prefixes_, name);
-    if (!select_filename.empty()) {
-      LOG(WARNING) << "APEX " << name << " is a multi-installed APEX."
-                   << " Any updated version in /data will always overwrite"
-                   << " the multi-installed preinstalled version, if possible.";
-    }
-
     auto pre_installed_public_key = GetPublicKey(name);
     if (!pre_installed_public_key.ok() ||
         apex_file->GetBundledPublicKey() != *pre_installed_public_key) {
