@@ -66,6 +66,10 @@ static constexpr const char* kApexStatusSysprop = "apexd.status";
 static constexpr const char* kApexStatusStarting = "starting";
 static constexpr const char* kApexStatusActivated = "activated";
 static constexpr const char* kApexStatusReady = "ready";
+static constexpr const char* kMultiApexSelectPersistPrefix =
+    "persist.vendor.apex.";
+static constexpr const char* kMultiApexSelectBootconfigPrefix =
+    "ro.boot.vendor.apex.";
 
 static constexpr const char* kVmPayloadMetadataPartition =
     "/dev/block/by-name/payload-metadata";
