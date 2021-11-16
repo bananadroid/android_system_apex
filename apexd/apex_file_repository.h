@@ -22,6 +22,7 @@
 #include <optional>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "apex_constants.h"
@@ -41,10 +42,15 @@ using ApexFileRef = std::reference_wrapper<const android::apex::ApexFile>;
 // mounts apexes (e.g. apexd, otapreopt_chroot).
 class ApexFileRepository final {
  public:
-  // c-tor and d-tor are exposed for testing.
+  // c-tors and d-tor are exposed for testing.
   explicit ApexFileRepository(
       const std::string& decompression_dir = kApexDecompressedDir)
       : decompression_dir_(decompression_dir){};
+  explicit ApexFileRepository(
+      bool enforce_multi_install_partition,
+      const std::vector<std::string>& multi_install_select_prop_prefixes)
+      : multi_install_select_prop_prefixes_(multi_install_select_prop_prefixes),
+        enforce_multi_install_partition_(enforce_multi_install_partition){};
 
   ~ApexFileRepository() {
     pre_installed_store_.clear();
@@ -157,6 +163,22 @@ class ApexFileRepository final {
   android::base::Result<void> ScanBuiltInDir(const std::string& dir);
 
   std::unordered_map<std::string, ApexFile> pre_installed_store_, data_store_;
+
+  // Multi-installed APEX name -> all encountered public keys for this APEX.
+  std::unordered_map<std::string, std::unordered_set<std::string>>
+      multi_install_public_keys_;
+
+  // Prefixes used when looking for multi-installed APEX sysprops.
+  // Order matters: the first non-empty prop value is returned.
+  std::vector<std::string> multi_install_select_prop_prefixes_ = {
+      // Check persist props first, to allow users to override bootconfig.
+      kMultiApexSelectPersistPrefix,
+      kMultiApexSelectBootconfigPrefix,
+  };
+
+  // Allows multi-install APEXes outside of expected partitions.
+  // Only set false in tests.
+  bool enforce_multi_install_partition_ = true;
 
   // Decompression directory which will be used to determine if apex is
   // decompressed or not
