@@ -14,21 +14,22 @@
  * limitations under the License.
  */
 
-#include <filesystem>
-#include <string>
-
-#include <errno.h>
-#include <sys/stat.h>
+#include "apex_file_repository.h"
 
 #include <android-base/file.h>
 #include <android-base/logging.h>
+#include <android-base/properties.h>
 #include <android-base/stringprintf.h>
+#include <errno.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <microdroid/metadata.h>
+#include <sys/stat.h>
+
+#include <filesystem>
+#include <string>
 
 #include "apex_file.h"
-#include "apex_file_repository.h"
 #include "apexd_test_utils.h"
 #include "apexd_verity.h"
 
@@ -159,6 +160,90 @@ TEST(ApexFileRepositoryTest, InitializeSameNameDifferentPathAborts) {
         instance.AddPreInstalledApex({td.path});
       },
       "");
+}
+
+TEST(ApexFileRepositoryTest, InitializeMultiInstalledSuccess) {
+  // Prepare test data.
+  TemporaryDir td;
+  std::string apex_file = GetTestFile("apex.apexd_test.apex");
+  fs::copy(apex_file, StringPrintf("%s/version_a.apex", td.path));
+  fs::copy(apex_file, StringPrintf("%s/version_b.apex", td.path));
+  std::string apex_name = ApexFile::Open(apex_file)->GetManifest().name();
+
+  std::string persist_prefix = "debug.apexd.test.persistprefix.";
+  std::string bootconfig_prefix = "debug.apexd.test.bootconfigprefix.";
+  ApexFileRepository instance(/*enforce_multi_install_partition=*/false,
+                              /*multi_install_select_prop_prefixes=*/{
+                                  persist_prefix, bootconfig_prefix});
+
+  auto test_fn = [&](const std::string& selected_filename) {
+    ASSERT_TRUE(IsOk(instance.AddPreInstalledApex({td.path})));
+    auto ret = instance.GetPreinstalledPath(apex_name);
+    ASSERT_TRUE(IsOk(ret));
+    ASSERT_EQ(StringPrintf("%s/%s", td.path, selected_filename.c_str()), *ret);
+    instance.Reset();
+  };
+
+  // Start with version_a in bootconfig.
+  android::base::SetProperty(bootconfig_prefix + apex_name, "version_a.apex");
+  test_fn("version_a.apex");
+  // Developer chooses version_b with persist prop.
+  android::base::SetProperty(persist_prefix + apex_name, "version_b.apex");
+  test_fn("version_b.apex");
+  // Developer goes back to version_a with persist prop.
+  android::base::SetProperty(persist_prefix + apex_name, "version_a.apex");
+  test_fn("version_a.apex");
+
+  android::base::SetProperty(persist_prefix + apex_name, "");
+  android::base::SetProperty(bootconfig_prefix + apex_name, "");
+}
+
+TEST(ApexFileRepositoryTest, InitializeMultiInstalledSkipsForDifferingKeys) {
+  // Prepare test data.
+  TemporaryDir td;
+  fs::copy(GetTestFile("apex.apexd_test.apex"),
+           StringPrintf("%s/version_a.apex", td.path));
+  fs::copy(GetTestFile("apex.apexd_test_different_key.apex"),
+           StringPrintf("%s/version_b.apex", td.path));
+  std::string apex_name =
+      ApexFile::Open(GetTestFile("apex.apexd_test.apex"))->GetManifest().name();
+  std::string prop_prefix = "debug.apexd.test.bootconfigprefix.";
+  std::string prop = prop_prefix + apex_name;
+  android::base::SetProperty(prop, "version_a.apex");
+
+  ApexFileRepository instance(
+      /*enforce_multi_install_partition=*/false,
+      /*multi_install_select_prop_prefixes=*/{prop_prefix});
+  ASSERT_TRUE(IsOk(instance.AddPreInstalledApex({td.path})));
+  // Neither version should be have been installed.
+  ASSERT_FALSE(IsOk(instance.GetPreinstalledPath(apex_name)));
+
+  android::base::SetProperty(prop, "");
+}
+
+TEST(ApexFileRepositoryTest, InitializeMultiInstalledSkipsForInvalidPartition) {
+  // Prepare test data.
+  TemporaryDir td;
+  // Note: These test files are on /data, which is not a valid partition for
+  // multi-installed APEXes.
+  fs::copy(GetTestFile("apex.apexd_test.apex"),
+           StringPrintf("%s/version_a.apex", td.path));
+  fs::copy(GetTestFile("apex.apexd_test.apex"),
+           StringPrintf("%s/version_b.apex", td.path));
+  std::string apex_name =
+      ApexFile::Open(GetTestFile("apex.apexd_test.apex"))->GetManifest().name();
+  std::string prop_prefix = "debug.apexd.test.bootconfigprefix.";
+  std::string prop = prop_prefix + apex_name;
+  android::base::SetProperty(prop, "version_a.apex");
+
+  ApexFileRepository instance(
+      /*enforce_multi_install_partition=*/true,
+      /*multi_install_select_prop_prefixes=*/{prop_prefix});
+  ASSERT_TRUE(IsOk(instance.AddPreInstalledApex({td.path})));
+  // Neither version should be have been installed.
+  ASSERT_FALSE(IsOk(instance.GetPreinstalledPath(apex_name)));
+
+  android::base::SetProperty(prop, "");
 }
 
 TEST(ApexFileRepositoryTest,
