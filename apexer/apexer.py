@@ -203,6 +203,7 @@ def RunCommand(cmd, verbose=False, env=None, expected_return_values={0}):
   p = subprocess.Popen(
       cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env)
   output, _ = p.communicate()
+  output = output.decode()
 
   if verbose or p.returncode not in expected_return_values:
     print(output.rstrip())
@@ -265,7 +266,7 @@ def ValidateArgs(args):
     if not os.path.exists(args.build_info):
       print("Build info file '" + args.build_info + "' does not exist")
       return False
-    with open(args.build_info) as buildInfoFile:
+    with open(args.build_info, 'rb') as buildInfoFile:
       build_info = apex_build_info_pb2.ApexBuildInfo()
       build_info.ParseFromString(buildInfoFile.read())
 
@@ -364,13 +365,13 @@ def GenerateBuildInfo(args):
   if (args.include_cmd_line_in_build_info):
     build_info.apexer_command_line = str(sys.argv)
 
-  with open(args.file_contexts) as f:
+  with open(args.file_contexts, 'rb') as f:
     build_info.file_contexts = f.read()
 
-  with open(args.canned_fs_config) as f:
+  with open(args.canned_fs_config, 'rb') as f:
     build_info.canned_fs_config = f.read()
 
-  with open(args.android_manifest) as f:
+  with open(args.android_manifest, 'rb') as f:
     build_info.android_manifest = f.read()
 
   if args.target_sdk_version:
@@ -437,7 +438,7 @@ def AddLoggingParent(android_manifest, logging_parent_value):
     indent = get_indent(application.previousSibling, 1)
     application.appendChild(doc.createTextNode(indent))
 
-  with tempfile.NamedTemporaryFile(delete=False) as temp:
+  with tempfile.NamedTemporaryFile(delete=False, mode='w') as temp:
       write_xml(temp, doc)
       return temp.name
 
@@ -446,7 +447,7 @@ def CreateApex(args, work_dir):
     return False
 
   if args.verbose:
-    print 'Using tools from ' + str(tool_path_list)
+    print('Using tools from ' + str(tool_path_list))
 
   def copyfile(src, dst):
     if args.verbose:
@@ -457,14 +458,14 @@ def CreateApex(args, work_dir):
     manifest_apex = ValidateApexManifest(args.manifest)
   except ApexManifestError as err:
     print("'" + args.manifest + "' is not a valid manifest file")
-    print err.errmessage
+    print(err.errmessage)
     return False
   except IOError:
     print("Cannot read manifest file: '" + args.manifest + "'")
     return False
 
   # create an empty image that is sufficiently big
-  size_in_mb = (GetDirSize(args.input_dir) / (1024 * 1024))
+  size_in_mb = (GetDirSize(args.input_dir) // (1024 * 1024))
 
   content_dir = os.path.join(work_dir, 'content')
   os.mkdir(content_dir)
@@ -687,7 +688,7 @@ def CreateApex(args, work_dir):
   if not args.android_manifest:
     if args.verbose:
       print('Creating AndroidManifest ' + android_manifest_file)
-    with open(android_manifest_file, 'w+') as f:
+    with open(android_manifest_file, 'w') as f:
       app_package_name = manifest_apex.name
       f.write(PrepareAndroidManifest(app_package_name, manifest_apex.version))
     args.android_manifest = android_manifest_file

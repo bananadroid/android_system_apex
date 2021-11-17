@@ -67,12 +67,8 @@ python_binary_host {
         ":mke2fs_conf",
     ],
     version: {
-        py2: {
-            enabled: true,
-            embedded_launcher: true,
-        },
         py3: {
-            enabled: false,
+            embedded_launcher: true,
         },
     },
     libs: [
