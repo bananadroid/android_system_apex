@@ -2609,6 +2609,13 @@ Result<ApexFile> OpenAndValidateDecompressedApex(const ApexFile& capex,
   if (!result.ok()) {
     return result.error();
   }
+  auto ctx = GetfileconPath(apex_path);
+  if (!ctx.ok()) {
+    return ctx.error();
+  }
+  if (!StartsWith(*ctx, gConfig->active_apex_selinux_ctx)) {
+    return Error() << apex_path << " has wrong SELinux context " << *ctx;
+  }
   return std::move(*apex);
 }
 
