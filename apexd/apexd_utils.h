@@ -334,6 +334,17 @@ inline android::base::Result<void> RestoreconPath(const std::string& path) {
   return {};
 }
 
+inline android::base::Result<std::string> GetfileconPath(
+    const std::string& path) {
+  char* ctx;
+  if (getfilecon(path.c_str(), &ctx) < 0) {
+    return android::base::ErrnoError() << "Failed to getfilecon " << path;
+  }
+  std::string ret(ctx);
+  freecon(ctx);
+  return ret;
+}
+
 }  // namespace apex
 }  // namespace android
 
