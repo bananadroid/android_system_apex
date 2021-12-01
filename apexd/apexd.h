@@ -54,6 +54,7 @@ struct ApexdConfig {
   // it has the suffix "1". For example, /test-dir/test-metadata-1 can be valid
   // and the subsequent numbers should point APEX files.
   const char* vm_payload_metadata_partition;
+  const char* active_apex_selinux_ctx;
 };
 
 static const ApexdConfig kDefaultConfig = {
@@ -65,6 +66,7 @@ static const ApexdConfig kDefaultConfig = {
     kApexHashTreeDir,
     kStagedSessionsDir,
     kVmPayloadMetadataPartition,
+    "u:object_r:staging_data_file",
 };
 
 class CheckpointInterface;
