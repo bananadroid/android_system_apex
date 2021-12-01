@@ -14,12 +14,7 @@
  * limitations under the License.
  */
 
-#include <functional>
-#include <optional>
-#include <string>
-#include <tuple>
-#include <unordered_set>
-#include <vector>
+#include "apexd.h"
 
 #include <android-base/file.h>
 #include <android-base/properties.h>
@@ -30,18 +25,24 @@
 #include <gtest/gtest.h>
 #include <libdm/dm.h>
 #include <microdroid/metadata.h>
+#include <selinux/selinux.h>
 #include <sys/stat.h>
+
+#include <functional>
+#include <optional>
+#include <string>
+#include <tuple>
+#include <unordered_set>
+#include <vector>
 
 #include "apex_database.h"
 #include "apex_file_repository.h"
-#include "apexd.h"
+#include "apex_manifest.pb.h"
 #include "apexd_checkpoint.h"
 #include "apexd_loop.h"
 #include "apexd_session.h"
 #include "apexd_test_utils.h"
 #include "apexd_utils.h"
-
-#include "apex_manifest.pb.h"
 #include "com_android_apex.h"
 #include "gmock/gmock-matchers.h"
 
@@ -123,6 +124,9 @@ class MockCheckpointInterface : public CheckpointInterface {
 
 static constexpr const char* kTestApexdStatusSysprop = "apexd.status.test";
 
+static constexpr const char* kTestActiveApexSelinuxCtx =
+    "u:object_r:shell_data_file:s0";
+
 // A test fixture that provides frequently required temp directories for tests
 class ApexdUnitTest : public ::testing::Test {
  public:
@@ -140,7 +144,8 @@ class ApexdUnitTest : public ::testing::Test {
     config_ = {kTestApexdStatusSysprop,     {built_in_dir_},
                data_dir_.c_str(),           decompression_dir_.c_str(),
                ota_reserved_dir_.c_str(),   hash_tree_dir_.c_str(),
-               staged_session_dir_.c_str(), vm_payload_metadata_path_.c_str()};
+               staged_session_dir_.c_str(), vm_payload_metadata_path_.c_str(),
+               kTestActiveApexSelinuxCtx};
   }
 
   const std::string& GetBuiltInDir() { return built_in_dir_; }
@@ -4341,6 +4346,37 @@ TEST_F(ApexdUnitTest, MountAndDeriveClassPathJarsPresent) {
   ASSERT_THAT(class_path, Ok());
   ASSERT_THAT(class_path->HasBootClassPathJars(package_name), true);
   ASSERT_THAT(class_path->HasSystemServerClassPathJars(package_name), true);
+}
+
+TEST_F(ApexdUnitTest, ProcessCompressedApexWrongSELinuxContext) {
+  auto compressed_apex = ApexFile::Open(
+      AddPreInstalledApex("com.android.apex.compressed.v1.capex"));
+
+  std::vector<ApexFileRef> compressed_apex_list;
+  compressed_apex_list.emplace_back(std::cref(*compressed_apex));
+  auto return_value =
+      ProcessCompressedApex(compressed_apex_list, /* is_ota_chroot= */ false);
+  ASSERT_EQ(return_value.size(), 1u);
+
+  auto decompressed_apex_path = StringPrintf(
+      "%s/com.android.apex.compressed@1%s", GetDecompressionDir().c_str(),
+      kDecompressedApexPackageSuffix);
+  // Verify that so far it has correct context.
+  ASSERT_EQ(kTestActiveApexSelinuxCtx,
+            GetSelinuxContext(decompressed_apex_path));
+
+  // Manually mess up the context
+  ASSERT_EQ(0, setfilecon(decompressed_apex_path.c_str(),
+                          "u:object_r:apex_data_file:s0"));
+  ASSERT_EQ("u:object_r:apex_data_file:s0",
+            GetSelinuxContext(decompressed_apex_path));
+
+  auto attempt_2 =
+      ProcessCompressedApex(compressed_apex_list, /* is_ota_chroot= */ false);
+  ASSERT_EQ(attempt_2.size(), 1u);
+  // Verify that it again has correct context.
+  ASSERT_EQ(kTestActiveApexSelinuxCtx,
+            GetSelinuxContext(decompressed_apex_path));
 }
 
 }  // namespace apex
