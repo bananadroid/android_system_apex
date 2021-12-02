@@ -74,7 +74,7 @@ def run(args, verbose=None, **kwargs):
 def run_host_command(args, verbose=None, **kwargs):
     host_build_top = os.environ.get("ANDROID_BUILD_TOP")
     if host_build_top:
-        host_command_dir = os.path.join(host_build_top, "out/soong/host/linux-x86/bin")
+        host_command_dir = os.path.join(host_build_top, "out/host/linux-x86/bin")
         args[0] = os.path.join(host_command_dir, args[0])
     return run_and_check_output(args, verbose, **kwargs)
 
@@ -270,7 +270,7 @@ class ApexerRebuildTest(unittest.TestCase):
             payload_only = True
 
         os.environ["APEXER_TOOL_PATH"] = (self.host_tools_path +
-            ":out/soong/host/linux-x86/bin:prebuilts/sdk/tools/linux/bin")
+            ":out/host/linux-x86/bin:prebuilts/sdk/tools/linux/bin")
         cmd = ["apexer", "--force", "--include_build_info", "--do_not_check_keyname"]
         if DEBUG_TEST:
             cmd.append('-v')
@@ -315,7 +315,7 @@ class ApexerRebuildTest(unittest.TestCase):
             java_dep_lib += ":" + os.path.join(os.environ["ANDROID_HOST_OUT"], "lib64")
         if "ANDROID_BUILD_TOP" in os.environ:
             java_dep_lib += ":" + os.path.join(os.environ["ANDROID_BUILD_TOP"],
-                "out/soong/host/linux-x86/lib64")
+                "out/host/linux-x86/lib64")
 
         return [java_toolchain, java_dep_lib]
 
