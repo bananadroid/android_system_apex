@@ -171,7 +171,7 @@ genrule {
     ],
     out: ["apexer_test_host_tools.zip"],
     tools: apexer_deps_tools + [
-        // To force signapk.jar generated in out/soong/host
+        // To force signapk.jar generated in out/host
         "signapk",
     ],
     cmd: "HOST_OUT_BIN=$$(dirname $(location apexer)) && " +
