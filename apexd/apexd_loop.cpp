@@ -197,7 +197,7 @@ static Result<uint32_t> BlockDeviceQueueDepth(const std::string& file_path) {
   if (!ReadFileToString(nr_tags_path, &nr_tags)) {
     return Error() << "Failed to read " << nr_tags_path;
   }
-  android::base::Trim(nr_tags);
+  nr_tags = android::base::Trim(nr_tags);
   LOG(VERBOSE) << file_path << " is backed by /dev/" << blockdev
                << " and that block device supports queue depth " << nr_tags;
   return strtol(nr_tags.c_str(), NULL, 0);
