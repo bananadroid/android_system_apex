@@ -220,8 +220,9 @@ Result<void> ConfigureQueueDepth(const std::string& loop_device_path,
     return Error() << "Failed to read " << sysfs_path;
   }
   uint32_t cur_nr_requests = 0;
-  if (!ParseUint(cur_nr_requests_str.c_str(), &cur_nr_requests))
-    return Error() << "Failed to parse " << cur_nr_requests;
+  if (!ParseUint(cur_nr_requests_str.c_str(), &cur_nr_requests)) {
+    return Error() << "Failed to parse " << cur_nr_requests_str;
+  }
 
   unique_fd sysfs_fd(open(sysfs_path.c_str(), O_RDWR | O_CLOEXEC));
   if (sysfs_fd.get() == -1) {
