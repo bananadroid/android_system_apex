@@ -219,6 +219,7 @@ Result<void> ConfigureQueueDepth(const std::string& loop_device_path,
   if (!ReadFileToString(sysfs_path, &cur_nr_requests_str)) {
     return Error() << "Failed to read " << sysfs_path;
   }
+  cur_nr_requests_str = android::base::Trim(cur_nr_requests_str);
   uint32_t cur_nr_requests = 0;
   if (!ParseUint(cur_nr_requests_str.c_str(), &cur_nr_requests)) {
     return Error() << "Failed to parse " << cur_nr_requests_str;
