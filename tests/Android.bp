@@ -87,6 +87,7 @@ java_library_host {
 apex {
     name: "apex.test",
     manifest: "testdata/apex_manifest.json",
+    androidManifest: "testdata/AndroidManifest.xml",
     prebuilts: ["sample_prebuilt_file"],
     key: "apex.test.key",
     certificate: ":apex.test.certificate",
