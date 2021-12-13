@@ -229,3 +229,33 @@ android_test_helper_app {
         ":com.android.apex.compressed.v2_original",
     ]
 }
+
+java_test_host {
+    name: "apex_apkinapex_tests",
+    srcs:  ["src/**/ApkInApexTests.java"],
+    libs: ["tradefed", "truth-prebuilt"],
+    static_libs: ["cts-install-lib-host", "frameworks-base-hostutils", "testng"],
+    test_config: "apk-in-apex-tests.xml",
+    test_suites: ["general-tests"],
+    data: [
+        ":apex_apkinapex_tests_app",
+    ],
+    java_resources: [
+        ":com.android.apex.product.test",
+        ":com.android.apex.product.app.test.xml",
+        ":com.android.apex.system.test",
+        ":com.android.apex.system.app.test.xml",
+        ":com.android.apex.system_ext.test",
+        ":com.android.apex.system_ext.app.test.xml",
+        ":com.android.apex.vendor.test",
+        ":com.android.apex.vendor.app.test.xml",
+    ],
+}
+
+android_test_helper_app {
+    name: "apex_apkinapex_tests_app",
+    manifest: "app/ApkInApexTests_AndroidManifest.xml",
+    srcs: ["app/src/**/ApkInApexTests.java"],
+    static_libs: ["androidx.test.rules", "cts-install-lib", "cts-rollback-lib", "testng"],
+    test_suites: ["general-tests"],
+}
