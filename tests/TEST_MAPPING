@@ -7,6 +7,9 @@
       "name": "timezone_data_e2e_tests"
     },
     {
+      "name": "ApkInApexTests"
+    },
+    {
       "name": "CtsApexSharedLibrariesTestCases"
     }
   ],
