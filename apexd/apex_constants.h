@@ -71,8 +71,8 @@ static constexpr const char* kMultiApexSelectPersistPrefix =
 static constexpr const char* kMultiApexSelectBootconfigPrefix =
     "ro.boot.vendor.apex.";
 
-static constexpr const char* kVmPayloadMetadataPartition =
-    "/dev/block/by-name/payload-metadata";
+static constexpr const char* kVmPayloadMetadataPartitionProp =
+    "apexd.payload_metadata.path";
 
 // Banned APEX names
 static const std::unordered_set<std::string> kBannedApexName = {

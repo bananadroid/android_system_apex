@@ -3337,6 +3337,21 @@ Result<void> ReserveSpaceForCompressedApex(int64_t size,
   return {};
 }
 
+// Adds block apexes if system property is set.
+inline Result<void> AddBlockApex(ApexFileRepository& instance) {
+  auto prop = GetProperty(gConfig->vm_payload_metadata_partition_prop, "");
+  if (prop != "") {
+    if (auto add_block = instance.AddBlockApex(prop); !add_block.ok()) {
+      return Error() << "Failed to scan block APEX files: "
+                     << add_block.error();
+    }
+  } else {
+    LOG(INFO) << "No block apex metadata partition found, not adding block "
+              << "apexes";
+  }
+  return {};
+}
+
 // When running in the VM mode, we follow the minimal start-up operations.
 // - CreateSharedLibsApexDir
 // - AddPreInstalledApex: note that CAPEXes are not supported in the VM mode
@@ -3362,10 +3377,8 @@ int OnStartInVmMode() {
     return 1;
   }
 
-  if (auto status =
-          instance.AddBlockApex(gConfig->vm_payload_metadata_partition);
-      !status.ok()) {
-    LOG(ERROR) << "Failed to scan block APEX files: " << status.error();
+  if (auto status = AddBlockApex(instance); !status.ok()) {
+    LOG(ERROR) << status.error();
     return 1;
   }
 
