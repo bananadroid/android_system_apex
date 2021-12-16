@@ -123,6 +123,8 @@ class MockCheckpointInterface : public CheckpointInterface {
 };
 
 static constexpr const char* kTestApexdStatusSysprop = "apexd.status.test";
+static constexpr const char* kTestVmPayloadMetadataPartitionProp =
+    "apexd.vm.payload_metadata_partition.test";
 
 static constexpr const char* kTestActiveApexSelinuxCtx =
     "u:object_r:shell_data_file:s0";
@@ -139,12 +141,11 @@ class ApexdUnitTest : public ::testing::Test {
     staged_session_dir_ = StringPrintf("%s/staged-session-dir", td_.path);
 
     vm_payload_disk_ = StringPrintf("%s/vm-payload", td_.path);
-    vm_payload_metadata_path_ = vm_payload_disk_ + "1";
 
     config_ = {kTestApexdStatusSysprop,     {built_in_dir_},
                data_dir_.c_str(),           decompression_dir_.c_str(),
                ota_reserved_dir_.c_str(),   hash_tree_dir_.c_str(),
-               staged_session_dir_.c_str(), vm_payload_metadata_path_.c_str(),
+               staged_session_dir_.c_str(), kTestVmPayloadMetadataPartitionProp,
                kTestActiveApexSelinuxCtx};
   }
 
@@ -223,6 +224,12 @@ class ApexdUnitTest : public ::testing::Test {
     return result;
   }
 
+  void SetBlockApexEnabled(bool enabled) {
+    // The first partition(1) is "metadata" partition
+    base::SetProperty(kTestVmPayloadMetadataPartitionProp,
+                      enabled ? (vm_payload_disk_ + "1") : "");
+  }
+
  protected:
   void SetUp() override {
     SetConfig(config_);
@@ -246,11 +253,18 @@ class ApexdUnitTest : public ::testing::Test {
     apex->set_public_key(public_key);
     apex->set_root_digest(root_digest);
 
-    std::ofstream out(vm_payload_metadata_path_);
+    // The first partition is metadata partition
+    auto metadata_partition = vm_payload_disk_ + "1";
+    LOG(INFO) << "Writing metadata to " << metadata_partition;
+    std::ofstream out(metadata_partition);
+
     android::microdroid::WriteMetadata(metadata, out);
   }
 
-  void TearDown() override { DeleteDirContent(ApexSession::GetSessionsDir()); }
+  void TearDown() override {
+    DeleteDirContent(ApexSession::GetSessionsDir());
+    SetBlockApexEnabled(false);
+  }
 
  private:
   TemporaryDir td_;
@@ -3927,6 +3941,9 @@ TEST_F(ApexdMountTest, OnStartInVmModeActivatesBlockDevicesAsWell) {
   // Need to call InitializeVold before calling OnStart
   InitializeVold(&checkpoint_interface);
 
+  // Set system property to enable block apexes
+  SetBlockApexEnabled(true);
+
   auto path1 = AddBlockApex("apex.apexd_test.apex");
 
   ASSERT_EQ(0, OnStartInVmMode());
@@ -3958,6 +3975,9 @@ TEST_F(ApexdMountTest, OnStartInVmModeFailsWithDuplicateNames) {
   // Need to call InitializeVold before calling OnStart
   InitializeVold(&checkpoint_interface);
 
+  // Set system property to enable block apexes
+  SetBlockApexEnabled(true);
+
   AddPreInstalledApex("apex.apexd_test.apex");
   AddBlockApex("apex.apexd_test_v2.apex");
 
@@ -3969,6 +3989,9 @@ TEST_F(ApexdMountTest, OnStartInVmModeFailsWithWrongPubkey) {
   // Need to call InitializeVold before calling OnStart
   InitializeVold(&checkpoint_interface);
 
+  // Set system property to enable block apexes
+  SetBlockApexEnabled(true);
+
   AddBlockApex("apex.apexd_test.apex", /*public_key=*/"wrong pubkey");
 
   ASSERT_EQ(1, OnStartInVmMode());
@@ -3978,6 +4001,9 @@ TEST_F(ApexdMountTest, GetActivePackagesReturningBlockApexesAsWell) {
   MockCheckpointInterface checkpoint_interface;
   // Need to call InitializeVold before calling OnStart
   InitializeVold(&checkpoint_interface);
+
+  // Set system property to enable block apexes
+  SetBlockApexEnabled(true);
 
   auto path1 = AddBlockApex("apex.apexd_test.apex");
 
@@ -3993,6 +4019,9 @@ TEST_F(ApexdMountTest, OnStartInVmModeFailsWithWrongRootDigest) {
   MockCheckpointInterface checkpoint_interface;
   // Need to call InitializeVold before calling OnStart
   InitializeVold(&checkpoint_interface);
+
+  // Set system property to enable block apexes
+  SetBlockApexEnabled(true);
 
   AddBlockApex("apex.apexd_test.apex", /*public_key=*/"",
                /*root_digest=*/"wrong root digest");
