@@ -53,7 +53,7 @@ struct ApexdConfig {
   // partition of the VM payload disk. So, realpath() of this path is checked if
   // it has the suffix "1". For example, /test-dir/test-metadata-1 can be valid
   // and the subsequent numbers should point APEX files.
-  const char* vm_payload_metadata_partition;
+  const char* vm_payload_metadata_partition_prop;
   const char* active_apex_selinux_ctx;
 };
 
@@ -65,7 +65,7 @@ static const ApexdConfig kDefaultConfig = {
     kOtaReservedDir,
     kApexHashTreeDir,
     kStagedSessionsDir,
-    kVmPayloadMetadataPartition,
+    kVmPayloadMetadataPartitionProp,
     "u:object_r:staging_data_file",
 };
 
