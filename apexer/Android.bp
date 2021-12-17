@@ -148,6 +148,10 @@ python_test_host {
     libs: [
         "apex_manifest",
     ],
+    // TODO(b/210142956): re-enable once lab JDK is updated to match platform.
+    test_options: {
+        unit_test: false,
+    },
 }
 
 apexer_deps_minus_go_tools = apexer_tools + [
