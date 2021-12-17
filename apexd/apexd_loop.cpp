@@ -54,7 +54,6 @@ using android::base::GetBoolProperty;
 using android::base::ParseUint;
 using android::base::ReadFileToString;
 using android::base::Result;
-using android::base::ResultError;
 using android::base::StartsWith;
 using android::base::StringPrintf;
 using android::base::unique_fd;
@@ -230,9 +229,9 @@ Result<void> ConfigureQueueDepth(const std::string& loop_device_path,
     return ErrnoErrorf("Failed to open {}", sysfs_path);
   }
 
-  const Result<uint32_t> qd = BlockDeviceQueueDepth(file_path);
+  const auto qd = BlockDeviceQueueDepth(file_path);
   if (!qd.ok()) {
-    return ResultError(qd.error());
+    return qd.error();
   }
   if (*qd == cur_nr_requests) {
     return {};
