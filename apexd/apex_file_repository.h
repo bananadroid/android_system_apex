@@ -72,8 +72,9 @@ class ApexFileRepository final {
   // |metadata_partition|. Host can provide its apexes to a VM instance via the
   // virtual disk image which has partitions: (see
   // /packages/modules/Virtualization/microdroid for the details)
-  //  - metadata partition(/dev/block/vd*1) should be accessed via
-  //  /dev/block/by-name/payload-metadata.
+  //  - metadata partition(/dev/block/vd*1) should be accessed by
+  //  setting the system property apexd.payload_metadata.prop. On microdroid,
+  //  this is /dev/block/by-name/payload-metadata.
   //  - each subsequence partition(/dev/block/vd*{2,3,..}) represents an APEX
   //  archive.
   // It will fail if there is more than one apex with the same name in
@@ -81,7 +82,8 @@ class ApexFileRepository final {
   // is expected to be performed in a single thread during initialization of
   // apexd. After initialization is finished, all queries to the instance are
   // thread safe.
-  android::base::Result<void> AddBlockApex(
+  // This will return the number of block apexes that were added.
+  android::base::Result<int> AddBlockApex(
       const std::string& metadata_partition);
 
   // Populate instance by collecting data apex files from the given |data_dir|.

@@ -176,10 +176,17 @@ android::base::Result<void> ApexFileRepository::AddPreInstalledApex(
   return {};
 }
 
-Result<void> ApexFileRepository::AddBlockApex(
+Result<int> ApexFileRepository::AddBlockApex(
     const std::string& metadata_partition) {
   CHECK(!block_disk_path_.has_value())
       << "AddBlockApex() can't be called twice.";
+
+  auto metadata_ready = WaitForFile(metadata_partition, kBlockApexWaitTime);
+  if (!metadata_ready.ok()) {
+    LOG(ERROR) << "Error waiting for metadata_partition : "
+               << metadata_ready.error();
+    return {};
+  }
 
   // TODO(b/185069443) consider moving the logic to find disk_path from
   // metadata_partition to its own library
@@ -223,6 +230,8 @@ Result<void> ApexFileRepository::AddBlockApex(
     return {};
   }
 
+  int ret = 0;
+
   // subsequent partitions are APEX archives.
   static constexpr const int kFirstApexPartition = 2;
   for (int i = 0; i < metadata->apexes_size(); i++) {
@@ -230,6 +239,12 @@ Result<void> ApexFileRepository::AddBlockApex(
 
     const std::string apex_path =
         *block_disk_path_ + std::to_string(i + kFirstApexPartition);
+
+    auto apex_ready = WaitForFile(apex_path, kBlockApexWaitTime);
+    if (!apex_ready.ok()) {
+      return Error() << "Error waiting for apex file : " << apex_ready.error();
+    }
+
     auto apex_file = ApexFile::Open(apex_path);
     if (!apex_file.ok()) {
       return Error() << "Failed to open " << apex_path << " : "
@@ -260,10 +275,10 @@ Result<void> ApexFileRepository::AddBlockApex(
       return Error() << "duplicate of " << name << " found in "
                      << it->second.GetPath();
     }
-
+    ret++;
     pre_installed_store_.emplace(name, std::move(*apex_file));
   }
-  return {};
+  return {ret};
 }
 
 // TODO(b/179497746): AddDataApex should not concern with filtering out invalid

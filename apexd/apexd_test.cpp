@@ -4029,6 +4029,201 @@ TEST_F(ApexdMountTest, OnStartInVmModeFailsWithWrongRootDigest) {
   ASSERT_EQ(1, OnStartInVmMode());
 }
 
+// Test that OnStart works with only block devices
+TEST_F(ApexdMountTest, OnStartOnlyBlockDevices) {
+  MockCheckpointInterface checkpoint_interface;
+  // Need to call InitializeVold before calling OnStart
+  InitializeVold(&checkpoint_interface);
+
+  // Set system property to enable block apexes
+  SetBlockApexEnabled(true);
+
+  auto path1 = AddBlockApex("apex.apexd_test.apex");
+
+  ASSERT_THAT(android::apex::AddBlockApex(ApexFileRepository::GetInstance()),
+              Ok());
+
+  OnStart();
+  UnmountOnTearDown(path1);
+
+  ASSERT_EQ(GetProperty(kTestApexdStatusSysprop, ""), "starting");
+  auto apex_mounts = GetApexMounts();
+
+  ASSERT_THAT(apex_mounts,
+              UnorderedElementsAre("/apex/com.android.apex.test_package",
+                                   "/apex/com.android.apex.test_package@1"));
+}
+
+// Test that we can have a mix of both block and system apexes
+TEST_F(ApexdMountTest, OnStartBlockAndSystemInstalled) {
+  MockCheckpointInterface checkpoint_interface;
+  // Need to call InitializeVold before calling OnStart
+  InitializeVold(&checkpoint_interface);
+
+  // Set system property to enable block apexes
+  SetBlockApexEnabled(true);
+
+  auto path1 = AddPreInstalledApex("apex.apexd_test.apex");
+  auto path2 = AddBlockApex("apex.apexd_test_different_app.apex");
+
+  auto& instance = ApexFileRepository::GetInstance();
+
+  ASSERT_THAT(instance.AddPreInstalledApex({GetBuiltInDir()}), Ok());
+  ASSERT_THAT(android::apex::AddBlockApex(instance), Ok());
+
+  OnStart();
+  UnmountOnTearDown(path1);
+  UnmountOnTearDown(path2);
+
+  ASSERT_EQ(GetProperty(kTestApexdStatusSysprop, ""), "starting");
+  auto apex_mounts = GetApexMounts();
+
+  ASSERT_THAT(apex_mounts,
+              UnorderedElementsAre("/apex/com.android.apex.test_package",
+                                   "/apex/com.android.apex.test_package@1",
+                                   "/apex/com.android.apex.test_package_2",
+                                   "/apex/com.android.apex.test_package_2@1"));
+}
+
+TEST_F(ApexdMountTest, OnStartBlockAndCompressedInstalled) {
+  MockCheckpointInterface checkpoint_interface;
+  // Need to call InitializeVold before calling OnStart
+  InitializeVold(&checkpoint_interface);
+
+  // Set system property to enable block apexes
+  SetBlockApexEnabled(true);
+
+  auto path1 = AddPreInstalledApex("com.android.apex.compressed.v1.capex");
+  auto path2 = AddBlockApex("apex.apexd_test.apex");
+
+  auto& instance = ApexFileRepository::GetInstance();
+
+  ASSERT_THAT(instance.AddPreInstalledApex({GetBuiltInDir()}), Ok());
+  ASSERT_THAT(android::apex::AddBlockApex(instance), Ok());
+
+  OnStart();
+  UnmountOnTearDown(path1);
+  UnmountOnTearDown(path2);
+
+  // Decompressed APEX should be mounted
+  std::string decompressed_active_apex = StringPrintf(
+      "%s/com.android.apex.compressed@1%s", GetDecompressionDir().c_str(),
+      kDecompressedApexPackageSuffix);
+  UnmountOnTearDown(decompressed_active_apex);
+
+  ASSERT_EQ(GetProperty(kTestApexdStatusSysprop, ""), "starting");
+  auto apex_mounts = GetApexMounts();
+  ASSERT_THAT(apex_mounts,
+              UnorderedElementsAre("/apex/com.android.apex.compressed",
+                                   "/apex/com.android.apex.compressed@1",
+                                   "/apex/com.android.apex.test_package",
+                                   "/apex/com.android.apex.test_package@1"));
+}
+
+// Test that data version of apex is used if newer
+TEST_F(ApexdMountTest, BlockAndNewerData) {
+  // MockCheckpointInterface checkpoint_interface;
+  //// Need to call InitializeVold before calling OnStart
+  // InitializeVold(&checkpoint_interface);
+
+  // Set system property to enable block apexes
+  SetBlockApexEnabled(true);
+
+  auto& instance = ApexFileRepository::GetInstance();
+  AddBlockApex("apex.apexd_test.apex");
+  ASSERT_THAT(android::apex::AddBlockApex(instance), Ok());
+
+  TemporaryDir data_dir;
+  auto apexd_test_file_v2 =
+      ApexFile::Open(AddDataApex("apex.apexd_test_v2.apex"));
+  ASSERT_THAT(instance.AddDataApex(GetDataDir()), Ok());
+
+  auto all_apex = instance.AllApexFilesByName();
+  auto result = SelectApexForActivation(all_apex, instance);
+  ASSERT_EQ(result.size(), 1u);
+
+  ASSERT_THAT(result,
+              UnorderedElementsAre(ApexFileEq(ByRef(*apexd_test_file_v2))));
+}
+
+// Test that data version of apex not is used if older
+TEST_F(ApexdMountTest, BlockApexAndOlderData) {
+  MockCheckpointInterface checkpoint_interface;
+  // Need to call InitializeVold before calling OnStart
+  InitializeVold(&checkpoint_interface);
+
+  // Set system property to enable block apexes
+  SetBlockApexEnabled(true);
+
+  auto& instance = ApexFileRepository::GetInstance();
+  auto apexd_test_file_v2 =
+      ApexFile::Open(AddBlockApex("apex.apexd_test_v2.apex"));
+  ASSERT_THAT(android::apex::AddBlockApex(instance), Ok());
+
+  TemporaryDir data_dir;
+  AddDataApex("apex.apexd_test.apex");
+  ASSERT_THAT(instance.AddDataApex(GetDataDir()), Ok());
+
+  auto all_apex = instance.AllApexFilesByName();
+  auto result = SelectApexForActivation(all_apex, instance);
+  ASSERT_EQ(result.size(), 1u);
+
+  ASSERT_THAT(result,
+              UnorderedElementsAre(ApexFileEq(ByRef(*apexd_test_file_v2))));
+}
+
+// Test that AddBlockApex does nothing if system property not set.
+TEST_F(ApexdMountTest, AddBlockApexWithoutSystemProp) {
+  MockCheckpointInterface checkpoint_interface;
+  // Need to call InitializeVold before calling OnStart
+  InitializeVold(&checkpoint_interface);
+
+  auto& instance = ApexFileRepository::GetInstance();
+  AddBlockApex("apex.apexd_test.apex");
+  ASSERT_THAT(android::apex::AddBlockApex(instance), Ok());
+  ASSERT_EQ(instance.AllApexFilesByName().size(), 0ul);
+}
+
+// Test that adding block apex fails if preinstalled version exists
+TEST_F(ApexdMountTest, AddBlockApexFailsWithDuplicate) {
+  MockCheckpointInterface checkpoint_interface;
+  // Need to call InitializeVold before calling OnStart
+  InitializeVold(&checkpoint_interface);
+
+  // Set system property to enable block apexes
+  SetBlockApexEnabled(true);
+
+  AddPreInstalledApex("apex.apexd_test.apex");
+  AddBlockApex("apex.apexd_test_v2.apex");
+
+  auto& instance = ApexFileRepository::GetInstance();
+
+  ASSERT_THAT(instance.AddPreInstalledApex({GetBuiltInDir()}), Ok());
+  ASSERT_THAT(android::apex::AddBlockApex(instance),
+              HasError(WithMessage(HasSubstr(
+                  "duplicate of com.android.apex.test_package found"))));
+}
+
+// Test that adding block apex fails if preinstalled compressed version exists
+TEST_F(ApexdMountTest, AddBlockApexFailsWithCompressedDuplicate) {
+  MockCheckpointInterface checkpoint_interface;
+  // Need to call InitializeVold before calling OnStart
+  InitializeVold(&checkpoint_interface);
+
+  // Set system property to enable block apexes
+  SetBlockApexEnabled(true);
+
+  auto path1 = AddPreInstalledApex("com.android.apex.compressed.v1.capex");
+  auto path2 = AddBlockApex("com.android.apex.compressed.v1_original.apex");
+
+  auto& instance = ApexFileRepository::GetInstance();
+
+  ASSERT_THAT(instance.AddPreInstalledApex({GetBuiltInDir()}), Ok());
+  ASSERT_THAT(android::apex::AddBlockApex(instance),
+              HasError(WithMessage(HasSubstr(
+                  "duplicate of com.android.apex.compressed found"))));
+}
+
 class ApexActivationFailureTests : public ApexdMountTest {};
 
 TEST_F(ApexActivationFailureTests, BuildFingerprintDifferent) {
