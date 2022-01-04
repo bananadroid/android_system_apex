@@ -359,7 +359,17 @@ static ApexInfo GetApexInfo(const ApexFile& package) {
   Result<std::string> preinstalled_path =
       instance.GetPreinstalledPath(package.GetManifest().name());
   if (preinstalled_path.ok()) {
-    out.preinstalledModulePath = *preinstalled_path;
+    // We replace the preinstalled paths for block devices to /system/apex
+    // because PackageManager will not resolve them if they aren't in one of
+    // the SYSTEM_PARTITIONS defined in PackagePartitions.java.
+    // b/195363518 for more context.
+    const std::string block_path = "/dev/block/";
+    const std::string sys_apex_path =
+        std::string(kApexPackageSystemDir) + "/" +
+        preinstalled_path->substr(block_path.length());
+    out.preinstalledModulePath = preinstalled_path->starts_with(block_path)
+                                     ? sys_apex_path
+                                     : *preinstalled_path;
   }
   return out;
 }
