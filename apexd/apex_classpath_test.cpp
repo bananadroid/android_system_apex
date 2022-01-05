@@ -36,18 +36,16 @@ TEST(ApexClassPathUnitTest, ParseFromFile) {
   TemporaryFile output;
   WriteStringToFile(
       "export BOOTCLASSPATH /apex/a/jar1:/apex/b/jar2\n"
-      "export SYSTEMSERVERCLASSPATH /apex/a/\n"
-      "export DEX2OATBOOTCLASSPATH /apex/b/\n",
+      "export SYSTEMSERVERCLASSPATH\n"
+      "export UNEXPECTED /apex/c/\n",
       output.path);
   auto result = ClassPath::ParseFromFile(output.path);
   ASSERT_THAT(result, Ok());
 
-  ASSERT_THAT(result->HasBootClassPathJars("a"), true);
-  ASSERT_THAT(result->HasBootClassPathJars("b"), true);
-  ASSERT_THAT(result->HasSystemServerClassPathJars("a"), true);
-  ASSERT_THAT(result->HasSystemServerClassPathJars("b"), false);
-  ASSERT_THAT(result->HasDex2OatBootClassPathJars("a"), false);
-  ASSERT_THAT(result->HasDex2OatBootClassPathJars("b"), true);
+  ASSERT_THAT(result->HasClassPathJars("a"), true);
+  ASSERT_THAT(result->HasClassPathJars("b"), true);
+  ASSERT_THAT(result->HasClassPathJars("c"), true);
+  ASSERT_THAT(result->HasClassPathJars("d"), false);
 }
 
 TEST(ApexClassPathUnitTest, ParseFromFileJarsNotInApex) {
@@ -57,24 +55,24 @@ TEST(ApexClassPathUnitTest, ParseFromFileJarsNotInApex) {
   auto result = ClassPath::ParseFromFile(output.path);
   ASSERT_THAT(result, Ok());
 
-  ASSERT_THAT(result->HasBootClassPathJars("a"), false);
-  ASSERT_THAT(result->HasBootClassPathJars("b"), false);
+  ASSERT_THAT(result->HasClassPathJars("a"), false);
+  ASSERT_THAT(result->HasClassPathJars("b"), false);
 }
 
 TEST(ApexClassPathUnitTest, ParseFromFilePackagesWithSamePrefix) {
   TemporaryFile output;
   WriteStringToFile(
       "export BOOTCLASSPATH /apex/media/:/apex/mediaprovider\n"
-      "export SYSTEMSERVERCLASSPATH /apex/mediaprovider/\n",
+      "export SYSTEMSERVERCLASSPATH /apex/mediafoo/\n",
       output.path);
   auto result = ClassPath::ParseFromFile(output.path);
   ASSERT_THAT(result, Ok());
 
-  ASSERT_THAT(result->HasBootClassPathJars("media"), true);
+  ASSERT_THAT(result->HasClassPathJars("media"), true);
   // "/apex/mediaprovider" did not end with /
-  ASSERT_THAT(result->HasBootClassPathJars("mediaprovider"), false);
-  ASSERT_THAT(result->HasSystemServerClassPathJars("media"), false);
-  ASSERT_THAT(result->HasSystemServerClassPathJars("mediaprovider"), true);
+  ASSERT_THAT(result->HasClassPathJars("mediaprovider"), false);
+  // A prefix of an apex name present should not be accepted
+  ASSERT_THAT(result->HasClassPathJars("m"), false);
 }
 
 TEST(ApexClassPathUnitTest, ParseFromFileDoesNotExist) {

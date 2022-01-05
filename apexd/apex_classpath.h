@@ -41,22 +41,16 @@ class ClassPath {
       const std::vector<std::string>& temp_mounted_apex_paths,
       const std::string& sdkext_module_name = kSdkExtModuleName);
 
-  bool HasBootClassPathJars(const std::string& package);
-  bool HasDex2OatBootClassPathJars(const std::string& package);
-  bool HasSystemServerClassPathJars(const std::string& package);
+  bool HasClassPathJars(const std::string& package);
 
   // Exposed for testing only
   static android::base::Result<ClassPath> ParseFromFile(
       const std::string& file_path);
 
  private:
-  void AddPackageWithBootClasspathJars(const std::string& package);
-  void AddPackageWithDex2OatBootClasspathJars(const std::string& package);
-  void AddPackageWithSystemServerClasspathJars(const std::string& package);
+  void AddPackageWithClasspathJars(const std::string& package);
 
-  std::set<std::string> packages_with_boot_classpath_jars;
-  std::set<std::string> packages_with_dex2oatboot_classpath_jars;
-  std::set<std::string> packages_with_systemserver_classpath_jars;
+  std::set<std::string> packages_with_classpath_jars;
 };
 
 }  // namespace apex
