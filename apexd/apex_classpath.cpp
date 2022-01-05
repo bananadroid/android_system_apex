@@ -78,7 +78,7 @@ android::base::Result<ClassPath> ClassPath::DeriveClassPath(
   return ClassPath::ParseFromFile(temp_output_path);
 }
 
-// Parse the string output into structured infromation
+// Parse the string output into structured information
 // The raw output from derive_classpath has the following format:
 // ```
 // export BOOTCLASSPATH path/to/jar1:/path/to/jar2
@@ -106,52 +106,25 @@ android::base::Result<ClassPath> ClassPath::ParseFromFile(
     if (tokens.size() < 3) {
       continue;
     }
-    auto classpath_type = tokens[1];
     auto jars_list = tokens[2];
     for (const auto& jar_path : android::base::Split(jars_list, ":")) {
       std::smatch match;
       if (std::regex_search(jar_path, match, capture_apex_package_name)) {
         auto package_name = match[1];
-        if (classpath_type == "BOOTCLASSPATH") {
-          result.AddPackageWithBootClasspathJars(package_name);
-        } else if (classpath_type == "DEX2OATBOOTCLASSPATH") {
-          result.AddPackageWithDex2OatBootClasspathJars(package_name);
-        } else if (classpath_type == "SYSTEMSERVERCLASSPATH") {
-          result.AddPackageWithSystemServerClasspathJars(package_name);
-        }
+        result.AddPackageWithClasspathJars(package_name);
       }
     }
   }
   return result;
 }
 
-void ClassPath::AddPackageWithBootClasspathJars(const std::string& package) {
-  packages_with_boot_classpath_jars.insert(package);
+void ClassPath::AddPackageWithClasspathJars(const std::string& package) {
+  packages_with_classpath_jars.insert(package);
 }
 
-void ClassPath::AddPackageWithDex2OatBootClasspathJars(
-    const std::string& package) {
-  packages_with_dex2oatboot_classpath_jars.insert(package);
-}
-
-void ClassPath::AddPackageWithSystemServerClasspathJars(
-    const std::string& package) {
-  packages_with_systemserver_classpath_jars.insert(package);
-}
-
-bool ClassPath::HasBootClassPathJars(const std::string& package) {
-  return packages_with_boot_classpath_jars.find(package) !=
-         packages_with_boot_classpath_jars.end();
-}
-
-bool ClassPath::HasDex2OatBootClassPathJars(const std::string& package) {
-  return packages_with_dex2oatboot_classpath_jars.find(package) !=
-         packages_with_dex2oatboot_classpath_jars.end();
-}
-
-bool ClassPath::HasSystemServerClassPathJars(const std::string& package) {
-  return packages_with_systemserver_classpath_jars.find(package) !=
-         packages_with_systemserver_classpath_jars.end();
+bool ClassPath::HasClassPathJars(const std::string& package) {
+  return packages_with_classpath_jars.find(package) !=
+         packages_with_classpath_jars.end();
 }
 
 }  // namespace apex
