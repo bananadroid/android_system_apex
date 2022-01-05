@@ -450,12 +450,7 @@ BinderStatus ApexService::getStagedApexInfos(
   for (const auto& apex_file : *files) {
     ApexInfo apex_info = GetApexInfo(apex_file);
     auto package_name = apex_info.moduleName;
-    apex_info.hasBootClassPathJars =
-        class_path->HasBootClassPathJars(package_name);
-    apex_info.hasDex2OatBootClassPathJars =
-        class_path->HasDex2OatBootClassPathJars(package_name);
-    apex_info.hasSystemServerClassPathJars =
-        class_path->HasSystemServerClassPathJars(package_name);
+    apex_info.hasClassPathJars = class_path->HasClassPathJars(package_name);
     aidl_return->push_back(std::move(apex_info));
   }
 
