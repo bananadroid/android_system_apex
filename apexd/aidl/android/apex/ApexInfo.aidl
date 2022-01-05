@@ -26,7 +26,5 @@ parcelable ApexInfo {
     boolean isActive;
 
     // Populated only for getStagedApex() API
-    boolean hasBootClassPathJars;
-    boolean hasDex2OatBootClassPathJars;
-    boolean hasSystemServerClassPathJars;
+    boolean hasClassPathJars;
 }
