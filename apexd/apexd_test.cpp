@@ -4552,8 +4552,7 @@ TEST_F(ApexdUnitTest, MountAndDeriveClasspathNoJar) {
   apex_files.emplace_back(std::move(*apex_file));
   auto class_path = MountAndDeriveClassPath(apex_files);
   ASSERT_THAT(class_path, Ok());
-  ASSERT_THAT(class_path->HasBootClassPathJars(package_name), false);
-  ASSERT_THAT(class_path->HasSystemServerClassPathJars(package_name), false);
+  ASSERT_THAT(class_path->HasClassPathJars(package_name), false);
 }
 
 TEST_F(ApexdUnitTest, MountAndDeriveClassPathJarsPresent) {
@@ -4568,8 +4567,7 @@ TEST_F(ApexdUnitTest, MountAndDeriveClassPathJarsPresent) {
   apex_files.emplace_back(std::move(*apex_file));
   auto class_path = MountAndDeriveClassPath(apex_files);
   ASSERT_THAT(class_path, Ok());
-  ASSERT_THAT(class_path->HasBootClassPathJars(package_name), true);
-  ASSERT_THAT(class_path->HasSystemServerClassPathJars(package_name), true);
+  ASSERT_THAT(class_path->HasClassPathJars(package_name), true);
 }
 
 TEST_F(ApexdUnitTest, ProcessCompressedApexWrongSELinuxContext) {
