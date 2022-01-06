@@ -14,6 +14,31 @@
  * limitations under the License.
  */
 
+#include <android-base/file.h>
+#include <android-base/logging.h>
+#include <android-base/macros.h>
+#include <android-base/properties.h>
+#include <android-base/scopeguard.h>
+#include <android-base/stringprintf.h>
+#include <android-base/strings.h>
+#include <android/apex/ApexInfo.h>
+#include <android/apex/IApexService.h>
+#include <android/os/IVold.h>
+#include <binder/IServiceManager.h>
+#include <fs_mgr_overlayfs.h>
+#include <fstab/fstab.h>
+#include <gmock/gmock.h>
+#include <grp.h>
+#include <gtest/gtest.h>
+#include <libdm/dm.h>
+#include <linux/loop.h>
+#include <selinux/selinux.h>
+#include <stdio.h>
+#include <sys/ioctl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/xattr.h>
+
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
@@ -23,32 +48,6 @@
 #include <string>
 #include <unordered_set>
 #include <vector>
-
-#include <grp.h>
-#include <linux/loop.h>
-#include <stdio.h>
-#include <sys/ioctl.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-
-#include <android-base/file.h>
-#include <android-base/logging.h>
-#include <android-base/macros.h>
-#include <android-base/properties.h>
-#include <android-base/scopeguard.h>
-#include <android-base/stringprintf.h>
-#include <android-base/strings.h>
-#include <android/os/IVold.h>
-#include <binder/IServiceManager.h>
-#include <fs_mgr_overlayfs.h>
-#include <fstab/fstab.h>
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
-#include <libdm/dm.h>
-#include <selinux/selinux.h>
-
-#include <android/apex/ApexInfo.h>
-#include <android/apex/IApexService.h>
 
 #include "apex_constants.h"
 #include "apex_database.h"
@@ -434,6 +433,41 @@ void CreateFile(const std::string& path) {
   ofs.close();
 }
 
+void CreateFileWithExpectedProperties(const std::string& path) {
+  CreateFile(path);
+  std::error_code ec;
+  fs::permissions(
+      path,
+      fs::perms::owner_read | fs::perms::group_write | fs::perms::others_exec,
+      fs::perm_options::replace, ec);
+  ASSERT_FALSE(ec) << "Failed to set permissions: " << ec.message();
+  ASSERT_EQ(0, chown(path.c_str(), 1007 /* log */, 3001 /* net_bt_admin */))
+      << "chown failed: " << strerror(errno);
+  ASSERT_TRUE(RegularFileExists(path));
+  char buf[65536];  // 64kB is max possible xattr list size. See "man 7 xattr".
+  ASSERT_EQ(0, setxattr(path.c_str(), "user.foo", "bar", 4, 0));
+  ASSERT_GE(listxattr(path.c_str(), buf, sizeof(buf)), 9);
+  ASSERT_TRUE(memmem(buf, sizeof(buf), "user.foo", 9) != nullptr);
+  ASSERT_EQ(4, getxattr(path.c_str(), "user.foo", buf, sizeof(buf)));
+  ASSERT_STREQ("bar", buf);
+}
+
+void ExpectFileWithExpectedProperties(const std::string& path) {
+  EXPECT_TRUE(RegularFileExists(path));
+  EXPECT_EQ(fs::status(path).permissions(), fs::perms::owner_read |
+                                                fs::perms::group_write |
+                                                fs::perms::others_exec);
+  struct stat sd;
+  ASSERT_EQ(0, stat(path.c_str(), &sd));
+  EXPECT_EQ(1007u, sd.st_uid);
+  EXPECT_EQ(3001u, sd.st_gid);
+  char buf[65536];  // 64kB is max possible xattr list size. See "man 7 xattr".
+  EXPECT_GE(listxattr(path.c_str(), buf, sizeof(buf)), 9);
+  EXPECT_TRUE(memmem(buf, sizeof(buf), "user.foo", 9) != nullptr);
+  EXPECT_EQ(4, getxattr(path.c_str(), "user.foo", buf, sizeof(buf)));
+  EXPECT_STREQ("bar", buf);
+}
+
 Result<std::vector<std::string>> ReadEntireDir(const std::string& path) {
   static const auto kAcceptAll = [](auto /*entry*/) { return true; };
   return ReadDir(path, kAcceptAll);
@@ -555,15 +589,13 @@ TEST_F(ApexServiceTest, SessionParamDefaults) {
 
 TEST_F(ApexServiceTest, SnapshotCeData) {
   CreateDir("/data/misc_ce/0/apexdata/apex.apexd_test");
-  CreateFile("/data/misc_ce/0/apexdata/apex.apexd_test/hello.txt");
-
-  ASSERT_TRUE(
-      RegularFileExists("/data/misc_ce/0/apexdata/apex.apexd_test/hello.txt"));
+  CreateFileWithExpectedProperties(
+      "/data/misc_ce/0/apexdata/apex.apexd_test/hello.txt");
 
   service_->snapshotCeData(0, 123456, "apex.apexd_test");
 
-  ASSERT_TRUE(RegularFileExists(
-      "/data/misc_ce/0/apexrollback/123456/apex.apexd_test/hello.txt"));
+  ExpectFileWithExpectedProperties(
+      "/data/misc_ce/0/apexrollback/123456/apex.apexd_test/hello.txt");
 }
 
 TEST_F(ApexServiceTest, RestoreCeData) {
@@ -572,21 +604,22 @@ TEST_F(ApexServiceTest, RestoreCeData) {
   CreateDir("/data/misc_ce/0/apexrollback/123456/apex.apexd_test");
 
   CreateFile("/data/misc_ce/0/apexdata/apex.apexd_test/newfile.txt");
-  CreateFile("/data/misc_ce/0/apexrollback/123456/apex.apexd_test/oldfile.txt");
+  CreateFileWithExpectedProperties(
+      "/data/misc_ce/0/apexrollback/123456/apex.apexd_test/oldfile.txt");
 
   ASSERT_TRUE(RegularFileExists(
       "/data/misc_ce/0/apexdata/apex.apexd_test/newfile.txt"));
-  ASSERT_TRUE(RegularFileExists(
-      "/data/misc_ce/0/apexrollback/123456/apex.apexd_test/oldfile.txt"));
+  ExpectFileWithExpectedProperties(
+      "/data/misc_ce/0/apexrollback/123456/apex.apexd_test/oldfile.txt");
 
   service_->restoreCeData(0, 123456, "apex.apexd_test");
 
-  ASSERT_TRUE(RegularFileExists(
-      "/data/misc_ce/0/apexdata/apex.apexd_test/oldfile.txt"));
-  ASSERT_FALSE(RegularFileExists(
+  ExpectFileWithExpectedProperties(
+      "/data/misc_ce/0/apexdata/apex.apexd_test/oldfile.txt");
+  EXPECT_FALSE(RegularFileExists(
       "/data/misc_ce/0/apexdata/apex.apexd_test/newfile.txt"));
   // The snapshot should be deleted after restoration.
-  ASSERT_FALSE(
+  EXPECT_FALSE(
       DirExists("/data/misc_ce/0/apexrollback/123456/apex.apexd_test"));
 }
 
