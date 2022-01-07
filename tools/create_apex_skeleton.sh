@@ -36,6 +36,10 @@ cat > Android.bp <<EOF
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
 EOF
 
 if [ -z ${APEX_KEY} ]
