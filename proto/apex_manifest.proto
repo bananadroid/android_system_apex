@@ -82,5 +82,7 @@ message ApexManifest {
 
   // Indicates that this APEX can be updated without rebooting device.
   bool supportsRebootlessUpdate = 13;
-}
 
+  // File hash value for apex container files except payload.
+  string apexContainerFilesHash = 14;
+}
