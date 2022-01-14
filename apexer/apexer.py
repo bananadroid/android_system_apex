@@ -777,6 +777,8 @@ def MergeZips(zip_files, output_zip):
       # copy to output_zip
       with zipfile.ZipFile(file, 'r') as inzip:
         for info in inzip.infolist():
+          # reset timestamp for deterministic output
+          info.date_time = (1980, 1, 1, 0, 0, 0)
           # "apex_payload.img" should be 4K aligned
           if info.filename == "apex_payload.img":
             data_offset = out.fp.tell() + len(info.FileHeader())
