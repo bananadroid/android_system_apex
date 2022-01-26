@@ -89,10 +89,13 @@ def RunCompress(args, work_dir):
   cmd.extend(['-o', args.output])
 
   # We want to put the input apex inside the compressed APEX with name
-  # "original_apex". So we create a hard link and put the renamed file inside
-  # the zip
+  # "original_apex". Originally this was done by creating a hard link
+  # in order to put the renamed file inside the zip, but it causes some issue
+  # when running this tool with Bazel in a sandbox which restricts the function
+  # of creating cross-device links. So instead of creating hard links, we make a
+  # copy of the original_apex here.
   original_apex = os.path.join(work_dir, 'original_apex')
-  os.link(args.input, original_apex)
+  shutil.copy2(args.input, original_apex)
   cmd.extend(['-C', work_dir])
   cmd.extend(['-f', original_apex])
 
