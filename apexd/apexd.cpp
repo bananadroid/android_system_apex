@@ -3412,6 +3412,12 @@ int OnStartInVmMode() {
     LOG(ERROR) << "Failed to activate apex packages : " << status.error();
     return 1;
   }
+  if (auto status = ActivateApexPackages(instance.GetDataApexFiles(),
+                                         ActivationMode::kVmMode);
+      !status.ok()) {
+    LOG(ERROR) << "Failed to activate apex packages : " << status.error();
+    return 1;
+  }
 
   OnAllPackagesActivated(false);
   // In VM mode, we don't run a separate --snapshotde mode.
