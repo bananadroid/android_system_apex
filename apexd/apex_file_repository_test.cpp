@@ -597,11 +597,13 @@ struct ApexFileRepositoryTestAddBlockApex : public ::testing::Test {
     PayloadMetadata(const std::string& path) : path(path) {}
     PayloadMetadata& apex(const std::string& name,
                           const std::string& public_key = "",
-                          const std::string& root_digest = "") {
+                          const std::string& root_digest = "",
+                          int64_t last_update_seconds = 0) {
       auto apex = metadata.add_apexes();
       apex->set_name(name);
       apex->set_public_key(public_key);
       apex->set_root_digest(root_digest);
+      apex->set_last_update_seconds(last_update_seconds);
       return *this;
     }
     ~PayloadMetadata() {
@@ -738,6 +740,33 @@ TEST_F(ApexFileRepositoryTestAddBlockApex, GetBlockApexRootDigest) {
 
   ASSERT_EQ(hex_root_digest,
             instance.GetBlockApexRootDigest("com.android.apex.test_package"));
+}
+
+TEST_F(ApexFileRepositoryTestAddBlockApex, GetBlockApexLastUpdateSeconds) {
+  // prepare payload disk with last update time
+  //  <test-dir>/vdc1 : metadata with apex.apexd_test.apex only
+  //            /vdc2 : apex.apexd_test.apex
+
+  const auto& test_apex_foo = GetTestFile("apex.apexd_test.apex");
+
+  const std::string metadata_partition_path = test_dir.path + "/vdc1"s;
+  const std::string apex_foo_path = test_dir.path + "/vdc2"s;
+
+  const int64_t last_update_seconds = 123456789;
+
+  // metadata lists "foo"
+  PayloadMetadata(metadata_partition_path)
+      .apex(test_apex_foo, /*public_key=*/"", /*root_digest=*/"",
+            last_update_seconds);
+  auto loop_device1 = WriteBlockApex(test_apex_foo, apex_foo_path);
+
+  // call ApexFileRepository::AddBlockApex()
+  ApexFileRepository instance;
+  auto status = instance.AddBlockApex(metadata_partition_path);
+  ASSERT_TRUE(IsOk(status));
+
+  ASSERT_EQ(last_update_seconds, instance.GetBlockApexLastUpdateSeconds(
+                                     "com.android.apex.test_package"));
 }
 
 TEST_F(ApexFileRepositoryTestAddBlockApex, VerifyPublicKeyWhenAddingBlockApex) {
