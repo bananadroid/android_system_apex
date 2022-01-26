@@ -3285,12 +3285,15 @@ void CollectApexInfoList(std::ostream& os,
       preinstalled_module_path = *preinstalled_path;
     }
 
-    std::optional<int64_t> mtime;
-    struct stat stat_buf;
-    if (stat(apex.GetPath().c_str(), &stat_buf) == 0) {
-      mtime.emplace(stat_buf.st_mtime);
-    } else {
-      PLOG(WARNING) << "Failed to stat " << apex.GetPath();
+    std::optional<int64_t> mtime =
+        instance.GetBlockApexLastUpdateSeconds(apex.GetManifest().name());
+    if (!mtime.has_value()) {
+      struct stat stat_buf;
+      if (stat(apex.GetPath().c_str(), &stat_buf) == 0) {
+        mtime.emplace(stat_buf.st_mtime);
+      } else {
+        PLOG(WARNING) << "Failed to stat " << apex.GetPath();
+      }
     }
     com::android::apex::ApexInfo apex_info(
         apex.GetManifest().name(), apex.GetPath(), preinstalled_module_path,
