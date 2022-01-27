@@ -3298,8 +3298,9 @@ void CollectApexInfoList(std::ostream& os,
     com::android::apex::ApexInfo apex_info(
         apex.GetManifest().name(), apex.GetPath(), preinstalled_module_path,
         apex.GetManifest().version(), apex.GetManifest().versionname(),
-        instance.IsPreInstalledApex(apex), is_active, mtime);
-    apex_infos.emplace_back(apex_info);
+        instance.IsPreInstalledApex(apex), is_active, mtime,
+        apex.GetManifest().providesharedapexlibs());
+    apex_infos.emplace_back(std::move(apex_info));
   };
   for (const auto& apex : active_apexs) {
     convert_to_autogen(apex, /* is_active= */ true);
@@ -3584,7 +3585,8 @@ int ActivateFlattenedApex() {
                               /* versionCode= */ manifest->version(),
                               /* versionName= */ manifest->versionname(),
                               /* isFactory= */ true, /* isActive= */ true,
-                              /* lastUpdateMillis= */ 0);
+                              /* lastUpdateMillis= */ 0,
+                              /* provideSharedApexLibs= */ false);
     }
   }
 
