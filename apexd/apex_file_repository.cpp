@@ -283,13 +283,19 @@ Result<int> ApexFileRepository::AddBlockApex(
     }
 
     // APEX should be unique.
-    auto it = pre_installed_store_.find(name);
-    if (it != pre_installed_store_.end()) {
-      return Error() << "duplicate of " << name << " found in "
-                     << it->second.GetPath();
+    for (const auto* store : {&pre_installed_store_, &data_store_}) {
+      auto it = store->find(name);
+      if (it != store->end()) {
+        return Error() << "duplicate of " << name << " found in "
+                       << it->second.GetPath();
+      }
     }
+    // Depending on whether the APEX was a factory version in the host or not,
+    // put it to different stores.
+    auto& store = apex_config.is_factory() ? pre_installed_store_ : data_store_;
+    store.emplace(name, std::move(*apex_file));
+
     ret++;
-    pre_installed_store_.emplace(name, std::move(*apex_file));
   }
   return {ret};
 }
@@ -373,6 +379,14 @@ Result<const std::string> ApexFileRepository::GetPublicKey(
     const std::string& name) const {
   auto it = pre_installed_store_.find(name);
   if (it == pre_installed_store_.end()) {
+    // Special casing for APEXes backed by block devices, i.e. APEXes in VM.
+    // Inside a VM, we fall back to find the key from data_store_. This is
+    // because an APEX is put to either pre_installed_store_ or data_store,
+    // depending on whether it was a factory APEX or not in the host.
+    it = data_store_.find(name);
+    if (it != data_store_.end() && IsBlockApex(it->second)) {
+      return it->second.GetBundledPublicKey();
+    }
     return Error() << "No preinstalled apex found for package " << name;
   }
   return it->second.GetBundledPublicKey();
