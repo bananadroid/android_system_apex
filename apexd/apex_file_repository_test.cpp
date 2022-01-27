@@ -598,12 +598,14 @@ struct ApexFileRepositoryTestAddBlockApex : public ::testing::Test {
     PayloadMetadata& apex(const std::string& name,
                           const std::string& public_key = "",
                           const std::string& root_digest = "",
-                          int64_t last_update_seconds = 0) {
+                          int64_t last_update_seconds = 0,
+                          bool is_factory = true) {
       auto apex = metadata.add_apexes();
       apex->set_name(name);
       apex->set_public_key(public_key);
       apex->set_root_digest(root_digest);
       apex->set_last_update_seconds(last_update_seconds);
+      apex->set_is_factory(is_factory);
       return *this;
     }
     ~PayloadMetadata() {
@@ -788,6 +790,33 @@ TEST_F(ApexFileRepositoryTestAddBlockApex, VerifyPublicKeyWhenAddingBlockApex) {
   ApexFileRepository instance;
   auto status = instance.AddBlockApex(metadata_partition_path);
   ASSERT_FALSE(IsOk(status));
+}
+
+TEST_F(ApexFileRepositoryTestAddBlockApex, RespectIsFactoryBitFromMetadata) {
+  // prepare payload disk
+  //  <test-dir>/vdc1 : metadata with apex.apexd_test.apex only
+  //            /vdc2 : apex.apexd_test.apex
+
+  const auto& test_apex_foo = GetTestFile("apex.apexd_test.apex");
+
+  const std::string metadata_partition_path = test_dir.path + "/vdc1"s;
+  const std::string apex_foo_path = test_dir.path + "/vdc2"s;
+  auto loop_device1 = WriteBlockApex(test_apex_foo, apex_foo_path);
+
+  for (const bool is_factory : {true, false}) {
+    // metadata lists "foo"
+    PayloadMetadata(metadata_partition_path)
+        .apex(test_apex_foo, /*public_key=*/"", /*root_digest=*/"",
+              /*last_update_seconds=*/0, is_factory);
+
+    // call ApexFileRepository::AddBlockApex()
+    ApexFileRepository instance;
+    auto status = instance.AddBlockApex(metadata_partition_path);
+    ASSERT_TRUE(IsOk(status))
+        << "failed to add block apex with is_factory=" << is_factory;
+    ASSERT_EQ(is_factory,
+              instance.HasPreInstalledVersion("com.android.apex.test_package"));
+  }
 }
 
 }  // namespace apex
