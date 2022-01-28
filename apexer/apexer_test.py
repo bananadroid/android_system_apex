@@ -428,7 +428,7 @@ class ApexerRebuildTest(unittest.TestCase):
       self._run_build_test(TEST_APEX_WITH_OVERRIDDEN_PACKAGE_NAME)
 
     def test_android_manifest_xml_change(self):
-    """Test payload image changes when AndroidManifest.xml changes.
+        """Test payload image changes when AndroidManifest.xml changes.
 
         This is a regression test for b194787885, the issue was that the
         AndroidManifest.xml file change does not change payload image and
