@@ -1,10 +1,9 @@
 {
-  // TODO(b/210142956): re-enable this once the lab JDK is updated.
-  //"presubmit": [
-  //  {
-  //    "name": "apexer_test"
-  //  }
-  //],
+  "presubmit": [
+    {
+      "name": "apexer_test"
+    }
+  ],
   "imports": [
     {
       "path": "system/apex/tests"
