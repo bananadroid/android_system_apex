@@ -889,6 +889,10 @@ def MergeZips(zip_files, output_zip):
         for info in inzip.infolist():
           # reset timestamp for deterministic output
           info.date_time = (1980, 1, 1, 0, 0, 0)
+          # reset filemode for deterministic output. The high 16 bits are for
+          # filemode. 0x81A4 corresponds to 0o100644(a regular file with
+          # '-rw-r--r--' permission).
+          info.external_attr = 0x81A40000
           # "apex_payload.img" should be 4K aligned
           if info.filename == 'apex_payload.img':
             data_offset = out.fp.tell() + len(info.FileHeader())
