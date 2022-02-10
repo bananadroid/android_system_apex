@@ -75,6 +75,9 @@ static constexpr const char* kVmPayloadMetadataPartitionProp =
     "apexd.payload_metadata.path";
 static constexpr const std::chrono::seconds kBlockApexWaitTime(10);
 
+static constexpr const char* kMetadataSepolicyStagedDir =
+    "/metadata/sepolicy/staged";
+
 // Banned APEX names
 static const std::unordered_set<std::string> kBannedApexName = {
     kApexSharedLibsSubDir,  // To avoid conflicts with predefined

@@ -48,6 +48,7 @@ struct ApexdConfig {
   const char* ota_reserved_dir;
   const char* apex_hash_tree_dir;
   const char* staged_session_dir;
+  const char* metadata_sepolicy_staged_dir;
   // Overrides the path to the "metadata" partition which is by default
   // /dev/block/by-name/payload-metadata It should be a path pointing the first
   // partition of the VM payload disk. So, realpath() of this path is checked if
@@ -65,6 +66,7 @@ static const ApexdConfig kDefaultConfig = {
     kOtaReservedDir,
     kApexHashTreeDir,
     kStagedSessionsDir,
+    kMetadataSepolicyStagedDir,
     kVmPayloadMetadataPartitionProp,
     "u:object_r:staging_data_file",
 };

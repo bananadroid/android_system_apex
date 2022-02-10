@@ -721,6 +721,86 @@ Result<void> Unmount(const MountedApexData& data, bool deferred) {
 
 namespace {
 
+// TODO(b/218672709): get the ro.build.version.sdk version of the device.
+const auto kSepolicyLevel = std::to_string(__ANDROID_API_T__);
+const auto kVersionedSepolicyZip = "SEPolicy-" + kSepolicyLevel + ".zip";
+const auto kVersionedSepolicySig = "SEPolicy-" + kSepolicyLevel + ".zip.sig";
+const auto kVersionedSepolicyFsv =
+    "SEPolicy-" + kSepolicyLevel + ".zip.fsv_sig";
+
+const auto kSepolicyZip = "SEPolicy.zip";
+const auto kSepolicySig = "SEPolicy.zip.sig";
+const auto kSepolicyFsv = "SEPolicy.zip.fsv_sig";
+
+Result<void> CopySepolicyToMetadata(const std::string& mount_point) {
+  LOG(DEBUG) << "Copying SEPolicy files to /metadata/sepolicy/staged.";
+  const auto policy_dir = mount_point + "/etc";
+
+  // Find SEPolicy zip and signature files.
+  std::optional<std::string> sepolicy_zip;
+  std::optional<std::string> sepolicy_sig;
+  std::optional<std::string> sepolicy_fsv;
+  auto status =
+      WalkDir(policy_dir, [&sepolicy_zip, &sepolicy_sig, &sepolicy_fsv](
+                              const std::filesystem::directory_entry& entry) {
+        if (!entry.is_regular_file()) {
+          return;
+        }
+        const auto& path = entry.path().string();
+        if (base::EndsWith(path, kVersionedSepolicyZip)) {
+          sepolicy_zip = path;
+        } else if (base::EndsWith(path, kVersionedSepolicySig)) {
+          sepolicy_sig = path;
+        } else if (base::EndsWith(path, kVersionedSepolicyFsv)) {
+          sepolicy_fsv = path;
+        }
+      });
+  if (!status.ok()) {
+    return status.error();
+  }
+  if (sepolicy_zip->empty() || sepolicy_sig->empty() || sepolicy_fsv->empty()) {
+    return Error() << "SEPolicy files not found.";
+  }
+  LOG(INFO) << "SEPolicy files found.";
+
+  // Set up staging directory.
+  std::error_code ec;
+  const auto staged_dir =
+      std::string(gConfig->metadata_sepolicy_staged_dir) + "/";
+  status = CreateDirIfNeeded(staged_dir, 0755);
+  if (!status.ok()) {
+    return status.error();
+  }
+
+  // Clean up after myself.
+  auto scope_guard = android::base::make_scope_guard([&staged_dir]() {
+    std::error_code ec;
+    std::filesystem::remove_all(staged_dir, ec);
+    if (ec) {
+      LOG(WARNING) << "Failed to clear " << staged_dir << ": " << ec.message();
+    }
+  });
+
+  // Copy files to staged folder.
+  std::map<std::string, std::string> from_to = {
+      {*sepolicy_zip, staged_dir + kSepolicyZip},
+      {*sepolicy_sig, staged_dir + kSepolicySig},
+      {*sepolicy_fsv, staged_dir + kSepolicyFsv}};
+  for (const auto& [from, to] : from_to) {
+    std::filesystem::copy_file(
+        from, to, std::filesystem::copy_options::overwrite_existing, ec);
+    if (ec) {
+      return Error() << "Failed to copy " << from << " to " << to << ": "
+                     << ec.message();
+    }
+  }
+
+  // TODO(b/218672709): if the kernel supports fs-verity, apply it after copy.
+
+  scope_guard.Disable();
+  return {};
+}
+
 template <typename VerifyFn>
 Result<void> RunVerifyFnInsideTempMount(const ApexFile& apex,
                                         const VerifyFn& verify_fn,
@@ -828,10 +908,13 @@ Result<void> VerifyPackageStagedInstall(const ApexFile& apex_file) {
     return verify_package_boot_status;
   }
 
-  constexpr const auto kSuccessFn = [](const std::string& /*mount_point*/) {
+  const auto validate_fn = [&apex_file](const std::string& mount_point) {
+    if (apex_file.GetManifest().name() == "com.android.sepolicy.apex") {
+      return CopySepolicyToMetadata(mount_point);
+    }
     return Result<void>{};
   };
-  return RunVerifyFnInsideTempMount(apex_file, kSuccessFn, false);
+  return RunVerifyFnInsideTempMount(apex_file, validate_fn, false);
 }
 
 template <typename VerifyApexFn>
@@ -1591,6 +1674,7 @@ Result<ApexFile> GetActivePackage(const std::string& packageName) {
  * Returns without error only if session was successfully aborted.
  **/
 Result<void> AbortStagedSession(int session_id) {
+  // TODO(b/218672709): Delete staged SEPolicy file if the session is aborted.
   auto session = ApexSession::GetSession(session_id);
   if (!session.ok()) {
     return Error() << "No session found with id " << session_id;
@@ -2857,6 +2941,7 @@ void OnStart() {
   const auto& all_apex = instance.AllApexFilesByName();
   // There can be multiple APEX packages with package name X. Determine which
   // one to activate.
+  // TODO(b/218672709): skip activation of sepolicy APEX during boot.
   auto activation_list = SelectApexForActivation(all_apex, instance);
 
   // Process compressed APEX, if any
