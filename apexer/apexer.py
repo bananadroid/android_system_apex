@@ -80,7 +80,7 @@ def ParseArgs(argv):
   parser.add_argument(
       '--canned_fs_config',
       help='canned_fs_config specifies uid/gid/mode of files. Required for ' +
-      '"image" APEXS.')
+           '"image" APEXS.')
   parser.add_argument(
       '--key', help='path to the private key file. Required for "image" APEXs.')
   parser.add_argument(
@@ -180,6 +180,14 @@ def ParseArgs(argv):
       action='store_true',
       help="""Skip signing the apex payload. Used only for testing purposes."""
   )
+  parser.add_argument(
+      '--test_only',
+      action='store_true',
+      help=(
+          'Add testOnly=true attribute to application element in '
+          'AndroidManifest file.')
+  )
+
   return parser.parse_args(argv)
 
 
@@ -237,16 +245,19 @@ def RoundUp(size, unit):
   return (size + unit - 1) & (~(unit - 1))
 
 
-def PrepareAndroidManifest(package, version):
+def PrepareAndroidManifest(package, version, test_only):
   template = """\
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
   package="{package}" android:versionCode="{version}">
   <!-- APEX does not have classes.dex -->
-  <application android:hasCode="false" />
+  <application android:hasCode="false" {test_only_attribute}/>
 </manifest>
 """
-  return template.format(package=package, version=version)
+
+  test_only_attribute = 'android:testOnly="true"' if test_only else ''
+  return template.format(package=package, version=version,
+                         test_only_attribute=test_only_attribute)
 
 
 def ValidateAndroidManifest(package, android_manifest):
@@ -257,6 +268,17 @@ def ValidateAndroidManifest(package, android_manifest):
     raise Exception("Package name '" + package_in_xml + "' in '" +
                     android_manifest + " differ from package name '" + package +
                     "' in the apex_manifest.pb")
+
+
+def ValidateGeneratedAndroidManifest(android_manifest, test_only):
+  tree = ET.parse(android_manifest)
+  manifest_tag = tree.getroot()
+  application_tag = manifest_tag.find('./application')
+  if test_only:
+    test_only_in_xml = application_tag.attrib[
+      '{http://schemas.android.com/apk/res/android}testOnly']
+    if test_only_in_xml != 'true':
+      raise Exception('testOnly attribute must be equal to true.')
 
 
 def ValidateArgs(args):
@@ -360,6 +382,7 @@ def ValidateArgs(args):
 
   return True
 
+
 def GenerateBuildInfo(args):
   build_info = apex_build_info_pb2.ApexBuildInfo()
   if (args.include_cmd_line_in_build_info):
@@ -393,6 +416,7 @@ def GenerateBuildInfo(args):
     build_info.payload_fs_type = args.payload_fs_type
 
   return build_info
+
 
 def AddLoggingParent(android_manifest, logging_parent_value):
   """Add logging parent as an additional <meta-data> tag.
@@ -439,8 +463,8 @@ def AddLoggingParent(android_manifest, logging_parent_value):
     application.appendChild(doc.createTextNode(indent))
 
   with tempfile.NamedTemporaryFile(delete=False, mode='w') as temp:
-      write_xml(temp, doc)
-      return temp.name
+    write_xml(temp, doc)
+    return temp.name
 
 
 def ShaHashFiles(file_paths):
@@ -482,7 +506,8 @@ def CreateImageExt4(args, work_dir, manifests_dir, img_file):
   cmd.extend(['-E', 'hash_seed=' + uu])
   cmd.append(img_file)
   cmd.append(str(size_in_mb) + 'M')
-  with tempfile.NamedTemporaryFile(dir=work_dir, suffix='mke2fs.conf') as conf_file:
+  with tempfile.NamedTemporaryFile(dir=work_dir,
+                                   suffix='mke2fs.conf') as conf_file:
     conf_data = pkgutil.get_data('apexer', 'mke2fs.conf')
     conf_file.write(conf_data)
     conf_file.flush()
@@ -536,7 +561,7 @@ def CreateImageF2fs(args, manifests_dir, img_file):
 
   # Create an empty image
   cmd = ['/usr/bin/fallocate']
-  cmd.extend(['-l', str(size_in_mb)+'M'])
+  cmd.extend(['-l', str(size_in_mb) + 'M'])
   cmd.append(img_file)
   RunCommand(cmd, args.verbose)
 
@@ -546,7 +571,7 @@ def CreateImageF2fs(args, manifests_dir, img_file):
   uu = str(uuid.uuid5(uuid.NAMESPACE_URL, 'www.android.com'))
   cmd.extend(['-U', uu])
   cmd.extend(['-T', '0'])
-  cmd.append('-r') # sets checkpointing seed to 0 to remove random bits
+  cmd.append('-r')  # sets checkpointing seed to 0 to remove random bits
   cmd.append(img_file)
   RunCommand(cmd, args.verbose)
 
@@ -557,7 +582,7 @@ def CreateImageF2fs(args, manifests_dir, img_file):
   cmd.extend(['-s', args.file_contexts])
   cmd.extend(['-T', '0'])
   cmd.append(img_file)
-  RunCommand(cmd, args.verbose, expected_return_values={0,1})
+  RunCommand(cmd, args.verbose, expected_return_values={0, 1})
 
   cmd = ['sload_f2fs']
   cmd.extend(['-C', args.canned_fs_config])
@@ -565,7 +590,7 @@ def CreateImageF2fs(args, manifests_dir, img_file):
   cmd.extend(['-s', args.file_contexts])
   cmd.extend(['-T', '0'])
   cmd.append(img_file)
-  RunCommand(cmd, args.verbose, expected_return_values={0,1})
+  RunCommand(cmd, args.verbose, expected_return_values={0, 1})
 
   # TODO(b/158453869): resize the image file to save space
 
@@ -711,8 +736,10 @@ def CreateAndroidManifestXml(args, work_dir, manifest_apex):
       print('Creating AndroidManifest ' + android_manifest_file)
     with open(android_manifest_file, 'w') as f:
       app_package_name = manifest_apex.name
-      f.write(PrepareAndroidManifest(app_package_name, manifest_apex.version))
+      f.write(PrepareAndroidManifest(app_package_name, manifest_apex.version,
+                                     args.test_only))
     args.android_manifest = android_manifest_file
+    ValidateGeneratedAndroidManifest(args.android_manifest, args.test_only)
   else:
     ValidateAndroidManifest(manifest_apex.name, args.android_manifest)
     shutil.copyfile(args.android_manifest, android_manifest_file)
@@ -840,6 +867,7 @@ class TempDirectory(object):
   def __exit__(self, *unused):
     shutil.rmtree(self.name)
 
+
 def CreateZip(content_dir, apex_zip):
   with zipfile.ZipFile(apex_zip, 'w', compression=zipfile.ZIP_DEFLATED) as out:
     for root, _, files in os.walk(content_dir):
@@ -851,6 +879,7 @@ def CreateZip(content_dir, apex_zip):
           out.write(path, rel_path, compress_type=zipfile.ZIP_STORED)
         else:
           out.write(path, rel_path)
+
 
 def MergeZips(zip_files, output_zip):
   with zipfile.ZipFile(output_zip, 'w') as out:
@@ -866,6 +895,7 @@ def MergeZips(zip_files, output_zip):
             info.extra = b'\0' * (BLOCK_SIZE - data_offset % BLOCK_SIZE)
           data = inzip.read(info)
           out.writestr(info, data)
+
 
 def main(argv):
   global tool_path_list
