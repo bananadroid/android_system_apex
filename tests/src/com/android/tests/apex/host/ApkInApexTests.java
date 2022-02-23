@@ -96,4 +96,9 @@ public class ApkInApexTests extends BaseHostJUnit4Test {
     public void testPrivPermissionIsGranted() throws Exception {
         runPhase("testPrivPermissionIsGranted");
     }
+
+    @Test
+    public void testJniCalls() throws Exception {
+        runPhase("testJniCalls");
+    }
 }

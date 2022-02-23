@@ -252,10 +252,28 @@ java_test_host {
     ],
 }
 
+cc_test_library {
+    name: "libApkInApex_jni",
+    gtest: false,
+    srcs: [
+        "app/jni/com_android_tests_apex_app_ApkInApexTests.cpp",
+    ],
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
+    header_libs: ["jni_headers"],
+    stl: "c++_shared",
+    sdk_version: "current",
+}
+
 android_test_helper_app {
     name: "apex_apkinapex_tests_app",
     manifest: "app/ApkInApexTests_AndroidManifest.xml",
     srcs: ["app/src/**/ApkInApexTests.java"],
+    jni_libs: [
+        "libApkInApex_jni",
+    ],
     static_libs: ["androidx.test.rules", "cts-install-lib", "cts-rollback-lib", "testng"],
     test_suites: ["general-tests"],
 }
