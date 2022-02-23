@@ -444,12 +444,25 @@ namespace android {
 namespace apex {
 
 namespace testing {
+
+// "preinstalledModulePath" is an optional in ApexInfoList.xsd.
+// getPreinstalledModulePath() should be called when hasPreinstalledModulePath()
+// returns true. Introducing a simple wrapper which returns optional<string>.
+inline std::optional<std::string> getPreinstalledModulePath(
+    const ApexInfo& obj) {
+  if (obj.hasPreinstalledModulePath()) {
+    return obj.getPreinstalledModulePath();
+  }
+  return std::nullopt;
+}
+
 MATCHER_P(ApexInfoXmlEq, other, "") {
   using ::testing::AllOf;
   using ::testing::Eq;
   using ::testing::ExplainMatchResult;
   using ::testing::Field;
   using ::testing::Property;
+  using ::testing::ResultOf;
 
   return ExplainMatchResult(
       AllOf(
@@ -457,9 +470,8 @@ MATCHER_P(ApexInfoXmlEq, other, "") {
                    Eq(other.getModuleName())),
           Property("modulePath", &ApexInfo::getModulePath,
                    Eq(other.getModulePath())),
-          Property("preinstalledModulePath",
-                   &ApexInfo::getPreinstalledModulePath,
-                   Eq(other.getPreinstalledModulePath())),
+          ResultOf(&getPreinstalledModulePath,
+                   Eq(getPreinstalledModulePath(other))),
           Property("versionCode", &ApexInfo::getVersionCode,
                    Eq(other.getVersionCode())),
           Property("isFactory", &ApexInfo::getIsFactory,
@@ -477,8 +489,10 @@ inline void PrintTo(const ApexInfo& apex, std::ostream* os) {
   *os << "apex_info: {\n";
   *os << "  moduleName : " << apex.getModuleName() << "\n";
   *os << "  modulePath : " << apex.getModulePath() << "\n";
-  *os << "  preinstalledModulePath : " << apex.getPreinstalledModulePath()
-      << "\n";
+  if (apex.hasPreinstalledModulePath()) {
+    *os << "  preinstalledModulePath : " << apex.getPreinstalledModulePath()
+        << "\n";
+  }
   *os << "  versionCode : " << apex.getVersionCode() << "\n";
   *os << "  isFactory : " << apex.getIsFactory() << "\n";
   *os << "  isActive : " << apex.getIsActive() << "\n";
