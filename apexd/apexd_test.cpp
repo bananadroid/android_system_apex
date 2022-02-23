@@ -260,6 +260,9 @@ class ApexdUnitTest : public ::testing::Test {
     apex->set_name("apex");
     apex->set_public_key(public_key);
     apex->set_root_digest(root_digest);
+    // In this test, block apeses are assumed as "factory".
+    // ApexFileRepositoryTestAddBlockApex tests non-factory cases.
+    apex->set_is_factory(true);
 
     // The first partition is metadata partition
     auto metadata_partition = vm_payload_disk_ + "1";
