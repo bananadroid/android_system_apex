@@ -79,4 +79,12 @@ public class ApkInApexTests {
         assertThat(pi.requestedPermissions).asList()
                 .contains("android.permission.START_ACTIVITIES_FROM_BACKGROUND");
     }
+
+    @Test
+    public void testJniCalls() throws Exception {
+        System.loadLibrary("ApkInApex_jni");
+        assertThat(nativeFakeMethod()).isTrue();
+    }
+
+    private native boolean nativeFakeMethod();
 }
