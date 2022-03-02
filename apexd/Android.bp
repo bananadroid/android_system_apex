@@ -87,6 +87,7 @@ cc_defaults {
     "libavb",
     "libdm",
     "libext2_uuid",
+    "libsigningutils",
     "libverity_tree",
     "libvold_binder",
     "libxml2",
