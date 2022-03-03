@@ -92,7 +92,7 @@ apex {
     manifest: "manifest.json",
     file_contexts: ":apex.test-file_contexts",  // Default, please edit, see go/android-apex-howto
     key: "${APEX_KEY}.key",
-    certificate: "${APEX_KEY}.certificate",
+    certificate: ":${APEX_KEY}.certificate",
     updatable: false,
 }
 EOF
