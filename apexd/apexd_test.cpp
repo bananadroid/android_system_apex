@@ -139,7 +139,8 @@ class ApexdUnitTest : public ::testing::Test {
     ota_reserved_dir_ = StringPrintf("%s/ota-reserved", td_.path);
     hash_tree_dir_ = StringPrintf("%s/apex-hash-tree", td_.path);
     staged_session_dir_ = StringPrintf("%s/staged-session-dir", td_.path);
-    metadata_sepolicy_dir_ = StringPrintf("%s/metadata-sepolicy-dir", td_.path);
+    metadata_sepolicy_staged_dir_ =
+        StringPrintf("%s/metadata-sepolicy-staged-dir", td_.path);
 
     vm_payload_disk_ = StringPrintf("%s/vm-payload", td_.path);
 
@@ -150,7 +151,7 @@ class ApexdUnitTest : public ::testing::Test {
                ota_reserved_dir_.c_str(),
                hash_tree_dir_.c_str(),
                staged_session_dir_.c_str(),
-               metadata_sepolicy_dir_.c_str(),
+               metadata_sepolicy_staged_dir_.c_str(),
                kTestVmPayloadMetadataPartitionProp,
                kTestActiveApexSelinuxCtx};
   }
@@ -164,7 +165,9 @@ class ApexdUnitTest : public ::testing::Test {
     return StringPrintf("%s/session_%d", staged_session_dir_.c_str(),
                         session_id);
   }
-  const std::string& GetMetadataSepolicyDir() { return metadata_sepolicy_dir_; }
+  const std::string& GetMetadataSepolicyStagedDir() {
+    return metadata_sepolicy_staged_dir_;
+  }
 
   std::string GetRootDigest(const ApexFile& apex) {
     if (apex.IsCompressed()) {
@@ -247,7 +250,7 @@ class ApexdUnitTest : public ::testing::Test {
     ASSERT_EQ(mkdir(ota_reserved_dir_.c_str(), 0755), 0);
     ASSERT_EQ(mkdir(hash_tree_dir_.c_str(), 0755), 0);
     ASSERT_EQ(mkdir(staged_session_dir_.c_str(), 0755), 0);
-    ASSERT_EQ(mkdir(metadata_sepolicy_dir_.c_str(), 0755), 0);
+    ASSERT_EQ(mkdir(metadata_sepolicy_staged_dir_.c_str(), 0755), 0);
 
     DeleteDirContent(ApexSession::GetSessionsDir());
   }
@@ -287,7 +290,7 @@ class ApexdUnitTest : public ::testing::Test {
   std::string vm_payload_disk_;
   std::string vm_payload_metadata_path_;
   std::string staged_session_dir_;
-  std::string metadata_sepolicy_dir_;
+  std::string metadata_sepolicy_staged_dir_;
   ApexdConfig config_;
   std::vector<loop::LoopbackDeviceUniqueFd> loop_devices_;  // to be cleaned up
 };
@@ -4295,11 +4298,27 @@ TEST_F(ApexdMountTest, CopySepolicyToMetadata) {
                           /* is_rollback= */ false, /* rollback_id= */ -1),
       Ok());
 
-  auto metadata_dir = GetMetadataSepolicyDir();
-  ASSERT_THAT(PathExists(metadata_dir + "/SEPolicy.zip"), HasValue(true));
-  ASSERT_THAT(PathExists(metadata_dir + "/SEPolicy.zip.sig"), HasValue(true));
-  ASSERT_THAT(PathExists(metadata_dir + "/SEPolicy.zip.fsv_sig"),
-              HasValue(true));
+  auto staged_dir = GetMetadataSepolicyStagedDir();
+  ASSERT_THAT(PathExists(staged_dir + "/SEPolicy.zip"), HasValue(true));
+  ASSERT_THAT(PathExists(staged_dir + "/SEPolicy.zip.sig"), HasValue(true));
+  ASSERT_THAT(PathExists(staged_dir + "/SEPolicy.zip.fsv_sig"), HasValue(true));
+}
+
+TEST_F(ApexdMountTest, AbortSepolicyApexInstall) {
+  std::string file_path = AddPreInstalledApex("com.android.sepolicy.apex");
+  ApexFileRepository::GetInstance().AddPreInstalledApex({GetBuiltInDir()});
+  ASSERT_THAT(CreateStagedSession("com.android.sepolicy.apex", 666), Ok());
+  ASSERT_THAT(
+      SubmitStagedSession(666, {}, /* has_rollback_enabled= */ false,
+                          /* is_rollback= */ false, /* rollback_id= */ -1),
+      Ok());
+
+  auto staged_dir = GetMetadataSepolicyStagedDir();
+  ASSERT_THAT(PathExists(staged_dir), HasValue(true));
+  ASSERT_FALSE(IsEmptyDirectory(staged_dir));
+
+  ASSERT_THAT(AbortStagedSession(666), Ok());
+  ASSERT_THAT(PathExists(staged_dir), HasValue(false));
 }
 
 class ApexActivationFailureTests : public ApexdMountTest {};
