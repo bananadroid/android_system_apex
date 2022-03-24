@@ -786,8 +786,6 @@ def CreateApex(args, work_dir):
   # in payload image file
   android_manifest_file = CreateAndroidManifestXml(
       args, work_dir, manifest_apex)
-  files_to_hash = [android_manifest_file]
-  manifest_apex.apexContainerFilesHash = ShaHashFiles(files_to_hash)
 
   # APEX manifest is also included in the image. The manifest is included
   # twice: once inside the image and once outside the image (but still
