@@ -40,8 +40,6 @@ TEST_PRIVATE_KEY = os.path.join("testdata", "com.android.example.apex.pem")
 TEST_X509_KEY = os.path.join("testdata", "com.android.example.apex.x509.pem")
 TEST_PK8_KEY = os.path.join("testdata", "com.android.example.apex.pk8")
 TEST_AVB_PUBLIC_KEY = os.path.join("testdata", "com.android.example.apex.avbpubkey")
-TEST_MANIFEST_XML_V1 = os.path.join("testdata", "manifest_v1.xml")
-TEST_MANIFEST_XML_V2 = os.path.join("testdata", "manifest_v2.xml")
 
 def run(args, verbose=None, **kwargs):
     """Creates and returns a subprocess.Popen object.
@@ -426,38 +424,6 @@ class ApexerRebuildTest(unittest.TestCase):
 
     def test_apex_with_overridden_package_name(self):
       self._run_build_test(TEST_APEX_WITH_OVERRIDDEN_PACKAGE_NAME)
-
-    def test_android_manifest_xml_change(self):
-        """Test payload image changes when AndroidManifest.xml changes.
-
-        This is a regression test for b194787885, the issue was that the
-        AndroidManifest.xml file change does not change payload image and
-        thus causing boot loops. This test verfies the apex_manifest.pb
-        files in payload image as well as apex are both impacted by changes
-        to AndroidManifest.xml.
-        """
-        apex_file_path = os.path.join(get_current_dir(), TEST_APEX + ".apex")
-        container_files = self._get_container_files(apex_file_path)
-        payload_dir = self._extract_payload(apex_file_path)
-        manifest_xml_v1_file = os.path.join(get_current_dir(), TEST_MANIFEST_XML_V1)
-        manifest_xml_v2_file = os.path.join(get_current_dir(), TEST_MANIFEST_XML_V2)
-        repacked_apex_v1 = self._run_apexer(
-            container_files, payload_dir,
-            ["--android_manifest", manifest_xml_v1_file])
-        repacked_apex_v2 = self._run_apexer(
-            container_files, payload_dir,
-            ["--android_manifest", manifest_xml_v2_file])
-
-        container_files_v1 = self._get_container_files(repacked_apex_v1)
-        self.assertIn("apex_payload.img", container_files_v1)
-        payload_hash_v1 = get_sha1sum(container_files_v1["apex_payload.img"])
-
-        container_files_v2 = self._get_container_files(repacked_apex_v2)
-        self.assertIn("apex_payload.img", container_files_v2)
-        payload_hash_v2 = get_sha1sum(container_files_v2["apex_payload.img"])
-
-        self.assertNotEqual(payload_hash_v1, payload_hash_v2)
-
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)
