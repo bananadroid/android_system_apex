@@ -38,7 +38,7 @@ using ::apex::proto::ApexManifest;
 
 // Fake getpwnam for host execution, used by the init::ServiceParser.
 passwd* getpwnam(const char*) {
-  char fake_buf[] = "fake";
+  static char fake_buf[] = "fake";
   static passwd fake_passwd = {
       .pw_name = fake_buf,
       .pw_dir = fake_buf,
