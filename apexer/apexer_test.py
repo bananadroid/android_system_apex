@@ -280,7 +280,7 @@ class ApexerRebuildTest(unittest.TestCase):
             cmd.extend(["--manifest_json", container_files["apex_manifest.json"]])
         cmd.extend(["--build_info", container_files["apex_build_info.pb"]])
         if not payload_only and "assets" in container_files:
-            cmd.extend(["--assets_dir", "assets"])
+            cmd.extend(["--assets_dir", container_files["assets"]])
         if not unsigned_payload_only:
             cmd.extend(["--key", os.path.join(get_current_dir(), TEST_PRIVATE_KEY)])
             cmd.extend(["--pubkey", os.path.join(get_current_dir(), TEST_AVB_PUBLIC_KEY)])
