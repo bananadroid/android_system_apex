@@ -187,6 +187,12 @@ def ParseArgs(argv):
           'Add testOnly=true attribute to application element in '
           'AndroidManifest file.')
   )
+  parser.add_argument(
+      '--apex_version_placeholder',
+      default = "__APEX_VERSION_PLACEHOLDER__",
+      required=False,
+      help='Default placeholder string in the APEX directory paths to be' +
+      'replaced with the APEX version code.')
 
   return parser.parse_args(argv)
 
@@ -346,14 +352,13 @@ def ValidateArgs(args):
         return False
 
     if not args.canned_fs_config:
-      if not args.canned_fs_config:
-        if build_info is not None:
-          with tempfile.NamedTemporaryFile(delete=False) as temp:
-            temp.write(build_info.canned_fs_config)
-            args.canned_fs_config = temp.name
-        else:
-          print('Missing ----canned_fs_config {config} argument, or a --build_info argument!')
-          return False
+      if build_info is not None:
+        with tempfile.NamedTemporaryFile(delete=False) as temp:
+          temp.write(build_info.canned_fs_config)
+          args.canned_fs_config = temp.name
+      else:
+        print('Missing --canned_fs_config {config} argument, or a --build_info argument!')
+        return False
 
   if not args.target_sdk_version:
     if build_info is not None:
@@ -383,18 +388,18 @@ def ValidateArgs(args):
   return True
 
 
-def GenerateBuildInfo(args):
+def GenerateBuildInfo(args, file_contexts, canned_fs_config, android_manifest):
   build_info = apex_build_info_pb2.ApexBuildInfo()
   if (args.include_cmd_line_in_build_info):
     build_info.apexer_command_line = str(sys.argv)
 
-  with open(args.file_contexts, 'rb') as f:
+  with open(file_contexts, 'rb') as f:
     build_info.file_contexts = f.read()
 
-  with open(args.canned_fs_config, 'rb') as f:
+  with open(canned_fs_config, 'rb') as f:
     build_info.canned_fs_config = f.read()
 
-  with open(args.android_manifest, 'rb') as f:
+  with open(android_manifest, 'rb') as f:
     build_info.android_manifest = f.read()
 
   if args.target_sdk_version:
@@ -480,19 +485,19 @@ def ShaHashFiles(file_paths):
   return h.hexdigest()
 
 
-def CreateImageExt4(args, work_dir, manifests_dir, img_file):
+def CreateImageExt4(args, staging_input_dir, work_dir, manifests_dir, img_file, canned_fs_config):
   """Create image for ext4 file system."""
   # sufficiently big = size + 16MB margin
-  size_in_mb = (GetDirSize(args.input_dir) // (1024 * 1024))
+  size_in_mb = (GetDirSize(staging_input_dir) // (1024 * 1024))
   size_in_mb += 16
 
-  # Margin is for files that are not under args.input_dir. this consists of
+  # Margin is for files that are not under staging_input_dir. this consists of
   # n inodes for apex_manifest files and 11 reserved inodes for ext4.
   # TOBO(b/122991714) eliminate these details. Use build_image.py which
   # determines the optimal inode count by first building an image and then
   # count the inodes actually used.
   inode_num_margin = GetFilesAndDirsCount(manifests_dir) + 11
-  inode_num = GetFilesAndDirsCount(args.input_dir) + inode_num_margin
+  inode_num = GetFilesAndDirsCount(staging_input_dir) + inode_num_margin
 
   cmd = ['mke2fs']
   cmd.extend(['-O', '^has_journal'])  # because image is read-only
@@ -524,10 +529,10 @@ def CreateImageExt4(args, work_dir, manifests_dir, img_file):
     # Add files to the image file
     cmd = ['e2fsdroid']
     cmd.append('-e')  # input is not android_sparse_file
-    cmd.extend(['-f', args.input_dir])
+    cmd.extend(['-f', staging_input_dir])
     cmd.extend(['-T', '0'])  # time is set to epoch
     cmd.extend(['-S', compiled_file_contexts])
-    cmd.extend(['-C', args.canned_fs_config])
+    cmd.extend(['-C', canned_fs_config])
     cmd.extend(['-a', '/'])
     cmd.append('-s')  # share dup blocks
     cmd.append(img_file)
@@ -538,7 +543,7 @@ def CreateImageExt4(args, work_dir, manifests_dir, img_file):
     cmd.extend(['-f', manifests_dir])
     cmd.extend(['-T', '0'])  # time is set to epoch
     cmd.extend(['-S', compiled_file_contexts])
-    cmd.extend(['-C', args.canned_fs_config])
+    cmd.extend(['-C', canned_fs_config])
     cmd.extend(['-a', '/'])
     cmd.append('-s')  # share dup blocks
     cmd.append(img_file)
@@ -551,12 +556,12 @@ def CreateImageExt4(args, work_dir, manifests_dir, img_file):
     RunCommand(cmd, args.verbose, {'E2FSPROGS_FAKE_TIME': '1'})
 
 
-def CreateImageF2fs(args, manifests_dir, img_file):
+def CreateImageF2fs(args, staging_input_dir, manifests_dir, img_file, canned_fs_config):
   """Create image for f2fs file system."""
   # F2FS requires a ~100M minimum size (necessary for ART, could be reduced
   # a bit for other)
   # TODO(b/158453869): relax these requirements for readonly devices
-  size_in_mb = (GetDirSize(args.input_dir) // (1024 * 1024))
+  size_in_mb = (GetDirSize(staging_input_dir) // (1024 * 1024))
   size_in_mb += 100
 
   # Create an empty image
@@ -577,7 +582,7 @@ def CreateImageF2fs(args, manifests_dir, img_file):
 
   # Add files to the image
   cmd = ['sload_f2fs']
-  cmd.extend(['-C', args.canned_fs_config])
+  cmd.extend(['-C', canned_fs_config])
   cmd.extend(['-f', manifests_dir])
   cmd.extend(['-s', args.file_contexts])
   cmd.extend(['-T', '0'])
@@ -585,8 +590,8 @@ def CreateImageF2fs(args, manifests_dir, img_file):
   RunCommand(cmd, args.verbose, expected_return_values={0, 1})
 
   cmd = ['sload_f2fs']
-  cmd.extend(['-C', args.canned_fs_config])
-  cmd.extend(['-f', args.input_dir])
+  cmd.extend(['-C', canned_fs_config])
+  cmd.extend(['-f', staging_input_dir])
   cmd.extend(['-s', args.file_contexts])
   cmd.extend(['-T', '0'])
   cmd.append(img_file)
@@ -595,7 +600,7 @@ def CreateImageF2fs(args, manifests_dir, img_file):
   # TODO(b/158453869): resize the image file to save space
 
 
-def CreateImageErofs(args, work_dir, manifests_dir, img_file):
+def CreateImageErofs(args, staging_input_dir, work_dir, manifests_dir, img_file, canned_fs_config):
   """Create image for erofs file system."""
   # mkfs.erofs doesn't support multiple input
 
@@ -603,13 +608,13 @@ def CreateImageErofs(args, work_dir, manifests_dir, img_file):
   os.mkdir(tmp_input_dir)
   cmd = ['/bin/cp', '-ra']
   cmd.extend(glob.glob(manifests_dir + '/*'))
-  cmd.extend(glob.glob(args.input_dir + '/*'))
+  cmd.extend(glob.glob(staging_input_dir + '/*'))
   cmd.append(tmp_input_dir)
   RunCommand(cmd, args.verbose)
 
   cmd = ['make_erofs']
   cmd.extend(['-z', 'lz4hc'])
-  cmd.extend(['--fs-config-file', args.canned_fs_config])
+  cmd.extend(['--fs-config-file', canned_fs_config])
   cmd.extend(['--file-contexts', args.file_contexts])
   uu = str(uuid.uuid5(uuid.NAMESPACE_URL, 'www.android.com'))
   cmd.extend(['-U', uu])
@@ -628,14 +633,14 @@ def CreateImageErofs(args, work_dir, manifests_dir, img_file):
     RunCommand(cmd, verbose=False)
 
 
-def CreateImage(args, work_dir, manifests_dir, img_file):
+def CreateImage(args, staging_input_dir, work_dir, manifests_dir, img_file, canned_fs_config):
   """create payload image."""
   if args.payload_fs_type == 'ext4':
-    CreateImageExt4(args, work_dir, manifests_dir, img_file)
+    CreateImageExt4(args, staging_input_dir, work_dir, manifests_dir, img_file, canned_fs_config)
   elif args.payload_fs_type == 'f2fs':
-    CreateImageF2fs(args, manifests_dir, img_file)
+    CreateImageF2fs(args, staging_input_dir, manifests_dir, img_file, canned_fs_config)
   elif args.payload_fs_type == 'erofs':
-    CreateImageErofs(args, work_dir, manifests_dir, img_file)
+    CreateImageErofs(args, staging_input_dir, work_dir, manifests_dir, img_file, canned_fs_config)
 
 
 def SignImage(args, manifest_apex, img_file):
@@ -688,31 +693,39 @@ def SignImage(args, manifest_apex, img_file):
   RunCommand(cmd, args.verbose)
 
 
-def CreateApexPayload(args, work_dir, content_dir, manifests_dir,
-                      manifest_apex):
+def CreateApexPayload(
+    args,
+    staging_input_dir,
+    work_dir,
+    content_dir,
+    manifests_dir,
+    manifest_apex,
+    canned_fs_config):
   """Create payload.
 
   Args:
     args: apexer options
+    staging_input_dir: the input directory to be turned into the payload
     work_dir: apex container working directory
     content_dir: the working directory for payload contents
     manifests_dir: manifests directory
     manifest_apex: apex manifest proto
+    canned_fs_config: the canned fs_config file
 
   Returns:
     payload file
   """
   if args.payload_type == 'image':
     img_file = os.path.join(content_dir, 'apex_payload.img')
-    CreateImage(args, work_dir, manifests_dir, img_file)
+    CreateImage(args, staging_input_dir, work_dir, manifests_dir, img_file, canned_fs_config)
     if not args.unsigned_payload:
       SignImage(args, manifest_apex, img_file)
   else:
     img_file = os.path.join(content_dir, 'apex_payload.zip')
     cmd = ['soong_zip']
     cmd.extend(['-o', img_file])
-    cmd.extend(['-C', args.input_dir])
-    cmd.extend(['-D', args.input_dir])
+    cmd.extend(['-C', staging_input_dir])
+    cmd.extend(['-D', staging_input_dir])
     cmd.extend(['-C', manifests_dir])
     cmd.extend(['-D', manifests_dir])
     RunCommand(cmd, args.verbose)
@@ -750,6 +763,59 @@ def CreateAndroidManifestXml(args, work_dir, manifest_apex):
                                              args.logging_parent)
   return android_manifest_file
 
+def ReplaceApexVersionPlaceholder(args, work_dir, apex_version_code):
+  """Replace args.apex_version_placeholder strings in APEX input paths with the version.
+
+  See b/229574810 for more information.
+
+  Args:
+    args: apexer options
+    work_dir: apex container working directory
+    apex_version_code: apex version as a string
+
+  Returns:
+    a tuple of the new canned_fs_config and input directory with substituted input paths
+  """
+
+  # While manifest_apex.version is an int arg, let's be defensive here
+  # and not rely on that being always the case.  Check that the version
+  # is a valid path fragment.
+  version_re = r'^[\w\.\-\_]+$'
+  if not re.match(version_re, apex_version_code, re.ASCII):
+    raise Exception('Unable to use apex verson ' + apex_version_code +
+      ' as filename suffix, valid characters are [a-zA-Z0-9_.-]')
+
+  # Update the canned fs config since it contains entries for every file/dir
+  # in the APEX.
+  if args.canned_fs_config is not None:
+    with open(args.canned_fs_config, 'r') as f:
+      canned_fs_config_content = f.read().replace(
+        args.apex_version_placeholder, apex_version_code)
+    new_canned_fs_config = os.path.join(work_dir, 'canned_fs_config')
+    with open(new_canned_fs_config, 'w') as f:
+      f.write(canned_fs_config_content)
+  else:
+    # TODO(b/193473780): Zip apexes do not have canned fs_config files.
+    # Delete when zipapex is deprecated.
+    new_canned_fs_config = None
+
+  # Copy the input dir into a staging area in the working directory.  This is
+  # necessary to perform any apexer-level changes on the file layouts, while
+  # avoiding in-place changes to the real inputs.
+  staging_input_dir = os.path.join(work_dir, 'input')
+  os.makedirs(staging_input_dir, exist_ok=True)
+  for root, _, files in os.walk(args.input_dir):
+    root_relative = os.path.relpath(root, args.input_dir)
+    root_relative = root_relative.replace(
+      args.apex_version_placeholder, apex_version_code)
+    for f in files:
+      src = os.path.join(root, f)
+      dest = os.path.normpath(os.path.join(staging_input_dir, root_relative, f))
+      # APEX contents can be unresolved symlinks, so don't follow them.
+      os.makedirs(os.path.dirname(dest), exist_ok=True)
+      shutil.copy2(src, dest, follow_symlinks=False)
+
+  return (new_canned_fs_config, staging_input_dir)
 
 def CreateApex(args, work_dir):
   if not ValidateArgs(args):
@@ -800,9 +866,24 @@ def CreateApex(args, work_dir):
     CopyFile(args.manifest_json,
              os.path.join(content_dir, 'apex_manifest.json'))
 
+  apex_version_code = str(manifest_apex.version)
+
+  # b/229574810: replace all instances of args.apex_version_placeholder
+  # strings in /app and /priv-app inputs. This is necessary for the
+  # package manager to correctly invalidate its directory-path based
+  # cache keys and differentiate APKs based on their version codes.
+  canned_fs_config, staging_input_dir = ReplaceApexVersionPlaceholder(
+      args, work_dir, apex_version_code)
+
   # Create payload
-  img_file = CreateApexPayload(args, work_dir, content_dir, manifests_dir,
-                               manifest_apex)
+  img_file = CreateApexPayload(
+      args,
+      staging_input_dir,
+      work_dir,
+      content_dir,
+      manifests_dir,
+      manifest_apex,
+      canned_fs_config)
 
   if args.unsigned_payload_only or args.payload_only:
     shutil.copyfile(img_file, args.output)
@@ -818,7 +899,11 @@ def CreateApex(args, work_dir):
     shutil.copyfile(args.pubkey, os.path.join(content_dir, 'apex_pubkey'))
 
   if args.include_build_info:
-    build_info = GenerateBuildInfo(args)
+    build_info = GenerateBuildInfo(
+        args,
+        args.file_contexts,
+        canned_fs_config,
+        args.android_manifest)
     with open(os.path.join(content_dir, 'apex_build_info.pb'), 'wb') as f:
       f.write(build_info.SerializeToString())
 
@@ -830,7 +915,7 @@ def CreateApex(args, work_dir):
     cmd.extend(['--rename-manifest-package', args.override_apk_package_name])
   # This version from apex_manifest.json is used when versionCode isn't
   # specified in AndroidManifest.xml
-  cmd.extend(['--version-code', str(manifest_apex.version)])
+  cmd.extend(['--version-code', apex_version_code])
   if manifest_apex.versionName:
     cmd.extend(['--version-name', manifest_apex.versionName])
   if args.target_sdk_version:
