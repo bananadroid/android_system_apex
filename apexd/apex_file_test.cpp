@@ -241,7 +241,7 @@ TEST(ApexFileTest, CannotVerifyApexVerityForCompressedApex) {
       ::testing::HasSubstr("Cannot verify ApexVerity of compressed APEX"));
 }
 
-TEST(ApexFileTest, DecompressCompressedApex) {
+TEST(ApexFileTest, DISABLED_DecompressCompressedApex) {
   const std::string file_path =
       kTestDataDir + "com.android.apex.compressed.v1.capex";
   Result<ApexFile> apex_file = ApexFile::Open(file_path);

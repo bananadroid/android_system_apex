@@ -414,7 +414,7 @@ TEST_F(ApexdUnitTest, SharedLibsDataVersionDeletedIfLower) {
   ASSERT_THAT(result, UnorderedElementsAre(ApexFileEq(ByRef(*shared_lib_v2))));
 }
 
-TEST_F(ApexdUnitTest, ProcessCompressedApex) {
+TEST_F(ApexdUnitTest, DISABLED_ProcessCompressedApex) {
   auto compressed_apex = ApexFile::Open(
       AddPreInstalledApex("com.android.apex.compressed.v1.capex"));
 
@@ -529,7 +529,7 @@ TEST_F(ApexdUnitTest, ProcessCompressedApexCanBeCalledMultipleTimes) {
 }
 
 // Test behavior of ProcessCompressedApex when is_ota_chroot is true
-TEST_F(ApexdUnitTest, ProcessCompressedApexOnOtaChroot) {
+TEST_F(ApexdUnitTest, DISABLED_ProcessCompressedApexOnOtaChroot) {
   auto compressed_apex = ApexFile::Open(
       AddPreInstalledApex("com.android.apex.compressed.v1.capex"));
 
