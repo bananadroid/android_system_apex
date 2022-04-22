@@ -769,7 +769,7 @@ TEST_F(ApexServiceTest, GetFactoryPackages) {
   }
 }
 
-TEST_F(ApexServiceTest, NoPackagesAreBothActiveAndInactive) {
+TEST_F(ApexServiceTest, DISABLED_NoPackagesAreBothActiveAndInactive) {
   Result<std::vector<ApexInfo>> active_packages = GetActivePackages();
   ASSERT_TRUE(IsOk(active_packages));
   ASSERT_TRUE(active_packages->size() > 0);
@@ -789,7 +789,7 @@ TEST_F(ApexServiceTest, NoPackagesAreBothActiveAndInactive) {
   ASSERT_THAT(intersection, SizeIs(0));
 }
 
-TEST_F(ApexServiceTest, GetAllPackages) {
+TEST_F(ApexServiceTest, DISABLED_GetAllPackages) {
   Result<std::vector<ApexInfo>> all_packages = GetAllPackages();
   ASSERT_TRUE(IsOk(all_packages));
   ASSERT_TRUE(all_packages->size() > 0);
