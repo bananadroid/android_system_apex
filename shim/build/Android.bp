@@ -265,6 +265,7 @@ genrule {
     ":com.android.apex.cts.shim.v2_with_post_install_hook",
     ":com.android.apex.cts.shim.v2_sdk_target_p",
     ":com.android.apex.cts.shim.v2_apk_in_apex_sdk_target_p",
+    ":com.android.apex.cts.shim.v2_apk_in_apex_upgrades",
     ":com.android.apex.cts.shim.v2_rebootless",
     ":com.android.apex.cts.shim.v3",
     ":com.android.apex.cts.shim.v3_rebootless",
@@ -579,6 +580,19 @@ apex {
   file_contexts: ":apex.test-file_contexts",
   key: "com.android.apex.cts.shim.key",
   prebuilts: ["hash_of_dev_null"],
+  installable: false,
+  updatable: false,
+}
+
+// Apex shim with upgraded apk-in-apexes
+apex {
+  name: "com.android.apex.cts.shim.v2_apk_in_apex_upgrades",
+  manifest: "manifest_v2.json",
+  androidManifest: "AndroidManifest.xml",
+  file_contexts: ":apex.test-file_contexts",
+  key: "com.android.apex.cts.shim.key",
+  prebuilts: ["hash_of_dev_null"],
+  apps: ["CtsShim", "CtsShimPrivUpgrade"],
   installable: false,
   updatable: false,
 }
