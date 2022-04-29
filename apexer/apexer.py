@@ -487,6 +487,12 @@ def ShaHashFiles(file_paths):
 
 def CreateImageExt4(args, staging_input_dir, work_dir, manifests_dir, img_file, canned_fs_config):
   """Create image for ext4 file system."""
+
+  lost_found_location = os.path.join(args.input_dir, 'lost+found')
+  if os.path.exists(lost_found_location):
+    print('Warning: input_dir contains a lost+found/ root folder, which '
+          'has been known to cause non-deterministic apex builds.')
+
   # sufficiently big = size + 16MB margin
   size_in_mb = (GetDirSize(staging_input_dir) // (1024 * 1024))
   size_in_mb += 16
