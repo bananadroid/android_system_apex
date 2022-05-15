@@ -371,6 +371,7 @@ static ApexInfo GetApexInfo(const ApexFile& package) {
                                      ? sys_apex_path
                                      : *preinstalled_path;
   }
+  out.activeApexChanged = ::android::apex::IsActiveApexChanged(package);
   return out;
 }
 
