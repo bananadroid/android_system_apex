@@ -227,6 +227,11 @@ android::base::Result<ApexFile> InstallPackage(const std::string& package_path);
 // Exposed for testing.
 android::base::Result<int> AddBlockApex(ApexFileRepository& instance);
 
+bool IsActiveApexChanged(const ApexFile& apex);
+
+// Shouldn't be used outside of apexd_test.cpp
+std::set<std::string>& GetChangedActiveApexesForTesting();
+
 }  // namespace apex
 }  // namespace android
 
