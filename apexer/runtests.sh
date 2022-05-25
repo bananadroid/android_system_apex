@@ -51,8 +51,6 @@ head -c 1M </dev/urandom > ${input_dir}/file1
 head -c 1M </dev/urandom > ${input_dir}/file2
 mkdir ${input_dir}/sub
 head -c 1M </dev/urandom > ${input_dir}/sub/file3
-mkdir ${input_dir}/sub2@__APEX_VERSION_PLACEHOLDER__
-head -c 1M </dev/urandom > ${input_dir}/sub2@__APEX_VERSION_PLACEHOLDER__/file4
 ln -s file1 ${input_dir}/sym1
 
 # Create the APEX manifest file
@@ -66,7 +64,6 @@ file_contexts_file=$(mktemp)
 echo '
 (/.*)?           u:object_r:root_file:s0
 /sub(/.*)?       u:object_r:sub_file:s0
-/sub2(/.*)?      u:object_r:sub2_file:s0
 /sub/file3       u:object_r:file3_file:s0
 ' > ${file_contexts_file}
 
@@ -77,8 +74,6 @@ echo '/ 1000 1000 0644
 /file2 1001 1001 0644
 /sub 1002 1002 0644
 /sub/file3 1003 1003 0644
-/sub2@__APEX_VERSION_PLACEHOLDER__ 1004 1004 0644
-/sub2@__APEX_VERSION_PLACEHOLDER__/file4 1005 1005 0644
 /sym1 1001 1001 0644' > ${canned_fs_config_file}
 
 output_file=${output_dir}/test.apex
@@ -119,7 +114,6 @@ sudo diff ${manifest_file} ${output_dir}/apex_manifest.pb
 sudo diff ${input_dir}/file1 ${output_dir}/mnt/file1
 sudo diff ${input_dir}/file2 ${output_dir}/mnt/file2
 sudo diff ${input_dir}/sub/file3 ${output_dir}/mnt/sub/file3
-sudo diff ${input_dir}/sub2@__APEX_VERSION_PLACEHOLDER__/file4 ${output_dir}/mnt/sub2@1/file4
 [ `sudo readlink ${output_dir}/mnt/sym1` = "file1" ]
 
 # check the uid/gid/type/mod
@@ -127,8 +121,6 @@ sudo diff ${input_dir}/sub2@__APEX_VERSION_PLACEHOLDER__/file4 ${output_dir}/mnt
 [ `sudo stat -c '%u,%g,%A' ${output_dir}/mnt/file2` = "1001,1001,-rw-r--r--" ]
 [ `sudo stat -c '%u,%g,%A' ${output_dir}/mnt/sub` = "1002,1002,drw-r--r--" ]
 [ `sudo stat -c '%u,%g,%A' ${output_dir}/mnt/sub/file3` = "1003,1003,-rw-r--r--" ]
-[ `sudo stat -c '%u,%g,%A' ${output_dir}/mnt/sub2@1` = "1004,1004,drw-r--r--" ]
-[ `sudo stat -c '%u,%g,%A' ${output_dir}/mnt/sub2@1/file4` = "1005,1005,-rw-r--r--" ]
 [ `sudo stat -c '%u,%g,%A' ${output_dir}/mnt/sym1` = "1001,1001,lrw-r--r--" ]
 [ `sudo stat -c '%u,%g,%A' ${output_dir}/mnt/apex_manifest.pb` = "1000,1000,-rw-r--r--" ]
 
@@ -137,7 +129,6 @@ sudo diff ${input_dir}/sub2@__APEX_VERSION_PLACEHOLDER__/file4 ${output_dir}/mnt
 [ `sudo ls -Z ${output_dir}/mnt/file2 | cut -d ' ' -f 1` = "u:object_r:root_file:s0" ]
 [ `sudo ls -d -Z ${output_dir}/mnt/sub/ | cut -d ' ' -f 1` = "u:object_r:sub_file:s0" ]
 [ `sudo ls -Z ${output_dir}/mnt/sub/file3 | cut -d ' ' -f 1` = "u:object_r:file3_file:s0" ]
-[ `sudo ls -Z ${output_dir}/mnt/sub2@1/file4 | cut -d ' ' -f 1` = "u:object_r:sub2_file:s0" ]
 [ `sudo ls -Z ${output_dir}/mnt/apex_manifest.pb | cut -d ' ' -f 1` = "u:object_r:root_file:s0" ]
 [ `sudo ls -Z ${output_dir}/mnt/sym1 | cut -d ' ' -f 1` = "u:object_r:root_file:s0" ]
 
