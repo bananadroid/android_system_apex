@@ -202,6 +202,7 @@ Result<void> PreAllocateLoopDevices() {
   for (const auto& path : *scan) {
     auto apex_file = ApexFile::Open(path);
     if (!apex_file.ok()) {
+      LOG(ERROR) << "Failed to open " << path << " : " << apex_file.error();
       continue;
     }
     size++;

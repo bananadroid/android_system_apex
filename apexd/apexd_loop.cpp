@@ -194,7 +194,7 @@ static Result<uint32_t> BlockDeviceQueueDepth(const std::string& file_path) {
       StringPrintf("/sys/class/block/%s/mq/0/nr_tags", blockdev.c_str());
   std::string nr_tags;
   if (!ReadFileToString(nr_tags_path, &nr_tags)) {
-    return Error() << "Failed to read " << nr_tags_path;
+    return ErrnoError() << "Failed to read " << nr_tags_path;
   }
   nr_tags = android::base::Trim(nr_tags);
   LOG(VERBOSE) << file_path << " is backed by /dev/" << blockdev
@@ -216,7 +216,7 @@ Result<void> ConfigureQueueDepth(const std::string& loop_device_path,
       StringPrintf("/sys/block/%s/queue/nr_requests", loop_device_name.c_str());
   std::string cur_nr_requests_str;
   if (!ReadFileToString(sysfs_path, &cur_nr_requests_str)) {
-    return Error() << "Failed to read " << sysfs_path;
+    return ErrnoError() << "Failed to read " << sysfs_path;
   }
   cur_nr_requests_str = android::base::Trim(cur_nr_requests_str);
   uint32_t cur_nr_requests = 0;
