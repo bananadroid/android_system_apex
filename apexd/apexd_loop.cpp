@@ -19,11 +19,13 @@
 
 #include "apexd_loop.h"
 
-#include <array>
-#include <filesystem>
-#include <mutex>
-#include <string_view>
-
+#include <ApexProperties.sysprop.h>
+#include <android-base/file.h>
+#include <android-base/logging.h>
+#include <android-base/parseint.h>
+#include <android-base/properties.h>
+#include <android-base/stringprintf.h>
+#include <android-base/strings.h>
 #include <dirent.h>
 #include <fcntl.h>
 #include <libdm/dm.h>
@@ -35,17 +37,14 @@
 #include <sys/sysmacros.h>
 #include <sys/types.h>
 #include <unistd.h>
-
-#include <android-base/file.h>
-#include <android-base/logging.h>
-#include <android-base/parseint.h>
-#include <android-base/properties.h>
-#include <android-base/stringprintf.h>
-#include <android-base/strings.h>
 #include <utils/Trace.h>
 
+#include <array>
+#include <filesystem>
+#include <mutex>
+#include <string_view>
+
 #include "apexd_utils.h"
-#include "string_log.h"
 
 using android::base::Basename;
 using android::base::ErrnoError;
@@ -67,13 +66,6 @@ static constexpr const char* kApexLoopIdPrefix = "apex:";
 
 // 128 kB read-ahead, which we currently use for /system as well
 static constexpr const char* kReadAheadKb = "128";
-
-// TODO(b/122059364): Even though the kernel has created the loop
-// device, we still depend on ueventd to run to actually create the
-// device node in userspace. To solve this properly we should listen on
-// the netlink socket for uevents, or use inotify. For now, this will
-// have to do.
-static constexpr size_t kLoopDeviceRetryAttempts = 3u;
 
 void LoopbackDeviceUniqueFd::MaybeCloseBad() {
   if (device_fd.get() != -1) {
@@ -458,9 +450,15 @@ Result<LoopbackDeviceUniqueFd> WaitForDevice(int num) {
   // rare cases apexd would try attempt to mount an apex before ueventd created
   // a loop device for it. To work around this we keep polling for loop device
   // to be created until ueventd's cold boot sequence is done.
-  // See comment on kLoopDeviceRetryAttempts.
   bool cold_boot_done = GetBoolProperty("ro.cold_boot_done", false);
-  for (size_t i = 0; i != kLoopDeviceRetryAttempts; ++i) {
+
+  // Even though the kernel has created the loop device, we still depend on
+  // ueventd to run to actually create the device node in userspace. To solve
+  // this properly we should listen on the netlink socket for uevents, or use
+  // inotify. For now, this will have to do.
+  size_t attempts =
+      android::sysprop::ApexProperties::loop_wait_attempts().value_or(3u);
+  for (size_t i = 0; i != attempts; ++i) {
     if (!cold_boot_done) {
       cold_boot_done = GetBoolProperty("ro.cold_boot_done", false);
     }
