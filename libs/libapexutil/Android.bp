@@ -22,7 +22,7 @@ cc_defaults {
   name: "libapexutil-deps",
   static_libs: [
     "libbase",
-    "liblog",
+    "liblog_for_runtime_apex",
     "libprotobuf-cpp-lite",
     "lib_apex_manifest_proto_lite",
   ],
