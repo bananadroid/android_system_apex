@@ -1232,6 +1232,15 @@ Result<void> ResumeRevertIfNeeded() {
 }
 
 Result<void> ActivateSharedLibsPackage(const std::string& mount_point) {
+  // Having static mutex here is not great, but since this function is called
+  // only twice during boot we can probably live with that. In U+ we will have
+  // a proper solution implemented.
+  static std::mutex mtx;
+  // ActivateSharedLibsPackage can be called concurrently from multiple threads.
+  // Since this function mutates the shared state in /apex/sharedlibs hold the
+  // mutex to avoid potential race conditions.
+  std::lock_guard guard(mtx);
+
   for (const auto& lib_path : {"lib", "lib64"}) {
     std::string apex_lib_path = mount_point + "/" + lib_path;
     auto lib_dir = PathExists(apex_lib_path);
