@@ -190,38 +190,6 @@ void ReleaseF2fsCompressedBlocks(const std::string& file_path) {
             << file_path;
 }
 
-// Pre-allocate loop devices so that we don't have to wait for them
-// later when actually activating APEXes.
-Result<void> PreAllocateLoopDevices() {
-  auto scan = FindApexes(kApexPackageBuiltinDirs);
-  if (!scan.ok()) {
-    return scan.error();
-  }
-
-  auto size = 0;
-  for (const auto& path : *scan) {
-    auto apex_file = ApexFile::Open(path);
-    if (!apex_file.ok()) {
-      LOG(ERROR) << "Failed to open " << path << " : " << apex_file.error();
-      continue;
-    }
-    size++;
-    // bootstrap Apexes may be activated on separate namespaces.
-    if (IsBootstrapApex(*apex_file)) {
-      size++;
-    }
-  }
-
-  // note: do not call PreAllocateLoopDevices() if size == 0.
-  // For devices (e.g. ARC) which doesn't support loop-control
-  // PreAllocateLoopDevices() can cause problem when it tries
-  // to access /dev/loop-control.
-  if (size == 0) {
-    return {};
-  }
-  return loop::PreAllocateLoopDevices(size);
-}
-
 std::unique_ptr<DmTable> CreateVerityTable(const ApexVerityData& verity_data,
                                            const std::string& block_device,
                                            const std::string& hash_device,
@@ -2523,11 +2491,6 @@ Result<void> CreateSharedLibsApexDir() {
 int OnBootstrap() {
   ATRACE_NAME("OnBootstrap");
   auto time_started = boot_clock::now();
-  Result<void> pre_allocate = PreAllocateLoopDevices();
-  if (!pre_allocate.ok()) {
-    LOG(ERROR) << "Failed to pre-allocate loop devices : "
-               << pre_allocate.error();
-  }
 
   ApexFileRepository& instance = ApexFileRepository::GetInstance();
   Result<void> status =
@@ -2537,6 +2500,30 @@ int OnBootstrap() {
     return 1;
   }
 
+  const auto& pre_installed_apexes = instance.GetPreInstalledApexFiles();
+  int loop_device_cnt = pre_installed_apexes.size();
+  // Find all bootstrap apexes
+  std::vector<ApexFileRef> bootstrap_apexes;
+  for (const auto& apex : pre_installed_apexes) {
+    if (IsBootstrapApex(apex.get())) {
+      LOG(INFO) << "Found bootstrap APEX " << apex.get().GetPath();
+      bootstrap_apexes.push_back(apex);
+      loop_device_cnt++;
+    }
+    if (apex.get().GetManifest().providesharedapexlibs()) {
+      LOG(INFO) << "Found sharedlibs APEX " << apex.get().GetPath();
+      // Sharedlis APEX might be mounted 2 times:
+      //   * Pre-installed sharedlibs APEX will be mounted in OnStart
+      //   * Updated sharedlibs APEX (if it exists) will be mounted in OnStart
+      //
+      // We already counted a loop device for one of these 2 mounts, need to add
+      // 1 more.
+      loop_device_cnt++;
+    }
+  }
+  LOG(INFO) << "Need to pre-allocate " << loop_device_cnt
+            << " loop devices for " << pre_installed_apexes.size()
+            << " APEX packages";
   // TODO(b/209491448) Remove this.
   auto block_count = AddBlockApex(instance);
   if (!block_count.ok()) {
@@ -2544,13 +2531,12 @@ int OnBootstrap() {
     return 1;
   }
   if (*block_count > 0) {
-    LOG(INFO) << "Pre-allocation " << *block_count
+    LOG(INFO) << "Also need to pre-allocate " << *block_count
               << " loop devices for block APEXes";
-    pre_allocate = loop::PreAllocateLoopDevices(*block_count);
-    if (!pre_allocate.ok()) {
-      LOG(ERROR) << "Failed to pre-allocate loop devices for block apexes : "
-                 << pre_allocate.error();
-    }
+    loop_device_cnt += *block_count;
+  }
+  if (auto res = loop::PreAllocateLoopDevices(loop_device_cnt); !res.ok()) {
+    LOG(ERROR) << "Failed to pre-allocate loop devices : " << res.error();
   }
 
   DeviceMapper& dm = DeviceMapper::Instance();
@@ -2562,7 +2548,7 @@ int OnBootstrap() {
   // optimistically creating a verity device for all of them. Once boot
   // finishes, apexd will clean up unused devices.
   // TODO(b/192241176): move to apexd_verity.{h,cpp}
-  for (const auto& apex : instance.GetPreInstalledApexFiles()) {
+  for (const auto& apex : pre_installed_apexes) {
     const std::string& name = apex.get().GetManifest().name();
     if (!dm.CreateEmptyDevice(name)) {
       LOG(ERROR) << "Failed to create empty device " << name;
@@ -2574,14 +2560,6 @@ int OnBootstrap() {
   if (!sharedlibs_apex_dir.ok()) {
     LOG(ERROR) << sharedlibs_apex_dir.error();
     return 1;
-  }
-
-  // Find all bootstrap apexes
-  std::vector<ApexFileRef> bootstrap_apexes;
-  for (const auto& apex : instance.GetPreInstalledApexFiles()) {
-    if (IsBootstrapApex(apex.get())) {
-      bootstrap_apexes.push_back(apex);
-    }
   }
 
   // Now activate bootstrap apexes.
