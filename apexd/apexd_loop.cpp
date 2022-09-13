@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "apexd"
 #define ATRACE_TAG ATRACE_TAG_PACKAGE_MANAGER
 
 #include "apexd_loop.h"
