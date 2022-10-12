@@ -17,6 +17,7 @@
 #include "apexd.h"
 
 #include <android-base/file.h>
+#include <android-base/parseint.h>
 #include <android-base/properties.h>
 #include <android-base/result-gmock.h>
 #include <android-base/scopeguard.h>
@@ -54,10 +55,12 @@ namespace fs = std::filesystem;
 
 using MountedApexData = MountedApexDatabase::MountedApexData;
 using android::apex::testing::ApexFileEq;
+using android::base::Basename;
 using android::base::GetExecutableDirectory;
 using android::base::GetProperty;
 using android::base::Join;
 using android::base::make_scope_guard;
+using android::base::ParseUint;
 using android::base::ReadFileToString;
 using android::base::ReadFully;
 using android::base::RemoveFileIfExists;
@@ -4857,6 +4860,37 @@ TEST_F(ApexdMountTest, FailsToActivateApexFallbacksToSystemOne) {
   auto apex_file = ApexFile::Open(preinstalled_apex);
   ASSERT_THAT(apex_file, Ok());
   ASSERT_TRUE(IsActiveApexChanged(*apex_file));
+}
+
+TEST_F(ApexdMountTest, LoopIoConfig) {
+  std::string file_path = AddPreInstalledApex("apex.apexd_test_nocode.apex");
+  ApexFileRepository::GetInstance().AddPreInstalledApex({GetBuiltInDir()});
+
+  ASSERT_THAT(ActivatePackage(file_path), Ok());
+  UnmountOnTearDown(file_path);
+
+  std::optional<std::string> loop_device;
+  auto& db = GetApexDatabaseForTesting();
+  // Check that upgraded APEX is mounted on top of dm-verity device.
+  db.ForallMountedApexes("com.android.apex.test_package",
+                         [&](const MountedApexData& data, bool /*latest*/) {
+                           loop_device.emplace(data.loop_name);
+                         });
+
+  ASSERT_TRUE(loop_device.has_value());
+  const std::string sysfs_path = StringPrintf("/sys/block/%s/queue/nr_requests",
+                                              (Basename(*loop_device)).c_str());
+  std::string actual_str;
+  ASSERT_TRUE(ReadFileToString(sysfs_path, &actual_str))
+      << "Failed to read " << sysfs_path;
+  actual_str = android::base::Trim(actual_str);
+  uint32_t actual = 0;
+  ASSERT_TRUE(ParseUint(actual_str.c_str(), &actual))
+      << "Failed to parse " << actual_str;
+
+  auto expected = loop::BlockDeviceQueueDepth("/data");
+  ASSERT_THAT(expected, Ok());
+  ASSERT_EQ(*expected, actual);
 }
 
 }  // namespace apex
