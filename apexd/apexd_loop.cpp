@@ -277,42 +277,30 @@ Result<void> PreAllocateLoopDevices(size_t num) {
     return ErrnoError() << "Failed to open loop-control";
   }
 
-  bool found = false;
-  size_t start_id = 0;
-  constexpr const char* kLoopPrefix = "loop";
-  auto walk_res =
-      WalkDir("/sys/block", [&](const std::filesystem::directory_entry& entry) {
-        std::string devname = entry.path().filename().string();
-        if (StartsWith(devname, kLoopPrefix)) {
-          size_t id;
-          auto parse_ok = ParseUint(
-              devname.substr(std::char_traits<char>::length(kLoopPrefix)), &id);
-          if (parse_ok && id > start_id) {
-            start_id = id;
-            found = true;
-          }
-        }
-      });
-  if (!walk_res.ok()) {
-    return walk_res.error();
-  }
-  if (found) ++start_id;
-
   // Assumption: loop device ID [0..num) is valid.
   // This is because pre-allocation happens during bootstrap.
   // Anyway Kernel pre-allocated loop devices
   // as many as CONFIG_BLK_DEV_LOOP_MIN_COUNT,
   // Within the amount of kernel-pre-allocation,
   // LOOP_CTL_ADD will fail with EEXIST
-  for (size_t id = start_id, cnt = 0; cnt < num; ++id) {
+  for (size_t id = 0ul, cnt = 0; cnt < num; ++id) {
     int ret = ioctl(ctl_fd.get(), LOOP_CTL_ADD, id);
     if (ret > 0) {
       LOG(INFO) << "Pre-allocated loop device " << id;
       cnt++;
     } else if (errno == EEXIST) {
-      LOG(WARNING) << "Loop device " << id << " already exists";
+      // When LOOP_CTL_ADD failed with EEXIST, it can check
+      // whether it is already in use.
+      // Otherwise, the loop devices pre-allocated by the kernel can be used.
+      std::string loop_device = StringPrintf("/sys/block/loop%zu/loop", id);
+      if (access(loop_device.c_str(), F_OK) == 0) {
+        LOG(WARNING) << "Loop device " << id << " already in use";
+      } else {
+        LOG(INFO) << "Found preallocated loop device " << id;
+        cnt++;
+      }
     } else {
-      return ErrnoError() << "Failed LOOP_CTL_ADD";
+      return ErrnoError() << "Failed LOOP_CTL_ADD id = " << id;
     }
   }
 
