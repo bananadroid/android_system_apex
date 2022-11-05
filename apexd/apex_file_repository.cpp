@@ -282,17 +282,14 @@ Result<int> ApexFileRepository::AddBlockApex(
       block_apex_overrides_.emplace(name, std::move(overrides));
     }
 
-    // APEX should be unique.
-    for (const auto* store : {&pre_installed_store_, &data_store_}) {
-      auto it = store->find(name);
-      if (it != store->end()) {
-        return Error() << "duplicate of " << name << " found in "
-                       << it->second.GetPath();
-      }
-    }
     // Depending on whether the APEX was a factory version in the host or not,
     // put it to different stores.
     auto& store = apex_config.is_factory() ? pre_installed_store_ : data_store_;
+    // We want "uniqueness" in each store.
+    if (auto it = store.find(name); it != store.end()) {
+      return Error() << "duplicate of " << name << " found in "
+                     << it->second.GetPath();
+    }
     store.emplace(name, std::move(*apex_file));
 
     ret++;
