@@ -706,7 +706,6 @@ const auto kVersionedSepolicyFsv =
 
 const auto kSepolicyZip = "SEPolicy.zip";
 const auto kSepolicySig = "SEPolicy.zip.sig";
-const auto kSepolicyFsv = "SEPolicy.zip.fsv_sig";
 
 Result<void> CopySepolicyToMetadata(const std::string& mount_point) {
   LOG(DEBUG) << "Copying SEPolicy files to /metadata/sepolicy/staged.";
@@ -759,11 +758,9 @@ Result<void> CopySepolicyToMetadata(const std::string& mount_point) {
 
   // Copy files to staged folder.
   const auto stagedSepolicyZip = staged_dir + kSepolicyZip;
-  const auto stagedSepolicyFsv = staged_dir + kSepolicyFsv;
   std::map<std::string, std::string> from_to = {
       {*sepolicy_zip, stagedSepolicyZip},
-      {*sepolicy_sig, staged_dir + kSepolicySig},
-      {*sepolicy_fsv, stagedSepolicyFsv}};
+      {*sepolicy_sig, staged_dir + kSepolicySig}};
   for (const auto& [from, to] : from_to) {
     std::filesystem::copy_file(
         from, to, std::filesystem::copy_options::update_existing, ec);
@@ -773,7 +770,7 @@ Result<void> CopySepolicyToMetadata(const std::string& mount_point) {
     }
   }
 
-  status = enableFsVerity(stagedSepolicyZip, stagedSepolicyFsv);
+  status = enableFsVerity(stagedSepolicyZip);
   if (!status.ok()) {
     // TODO(b/218672709): once we have a release certificate available, return
     // an error and make the ApexdMountTest#CopySepolicyToMetadata test pass.
