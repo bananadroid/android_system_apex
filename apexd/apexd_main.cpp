@@ -177,6 +177,8 @@ int main(int /*argc*/, char** argv) {
     //  ApexFileRepository can act as cache and re-scanning is not expensive
     android::apex::InitializeDataApex();
   }
+  // start apexservice before ApexdLifecycle::WaitForBootStatus which waits for
+  // IApexService::markBootComplete().
   android::apex::binder::CreateAndRegisterService();
   android::apex::binder::StartThreadPool();
 
@@ -189,11 +191,12 @@ int main(int /*argc*/, char** argv) {
     // complete.
     android::apex::OnAllPackagesActivated(/*is_bootstrap=*/false);
     lifecycle.WaitForBootStatus(android::apex::RevertActiveSessionsAndReboot);
+    // Run cleanup routine on boot complete.
+    // This should run before AllowServiceShutdown() to prevent
+    // service_manager killing apexd in the middle of the cleanup.
+    android::apex::BootCompletedCleanup();
   }
 
-  // Run cleanup routine before AllowServiceShutdown(), to prevent
-  // service_manager killing apexd in the middle of the cleanup.
-  android::apex::BootCompletedCleanup();
   android::apex::binder::AllowServiceShutdown();
 
   android::apex::binder::JoinThreadPool();
