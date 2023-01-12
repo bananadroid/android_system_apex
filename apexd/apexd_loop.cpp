@@ -104,6 +104,14 @@ Result<void> ConfigureScheduler(const std::string& device_path) {
       "none", "noop"};
 
   int ret = 0;
+  std::string cur_sched_str;
+  if (!ReadFileToString(sysfs_path, &cur_sched_str)) {
+    return ErrnoError() << "Failed to read " << sysfs_path;
+  }
+  cur_sched_str = android::base::Trim(cur_sched_str);
+  if (std::count(kNoScheduler.begin(), kNoScheduler.end(), cur_sched_str)) {
+    return {};
+  }
 
   for (const std::string_view& scheduler : kNoScheduler) {
     ret = write(sysfs_fd.get(), scheduler.data(), scheduler.size());
