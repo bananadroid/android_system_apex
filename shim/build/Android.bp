@@ -564,6 +564,10 @@ genrule {
   srcs: [":com.android.apex.cts.shim.v2_rebootless"],
   out: ["com.android.apex.cts.shim.v2_unsigned_apk_container.apex"],
   cmd: "cp -v $(in) $(out) && zip -d $(out) META-INF*",
+  dist: {
+    targets: ["com.android.apex.cts.shim.v2_unsigned_apk_container"],
+    dest: "com.android.apex.cts.shim.v2_unsigned_apk_container.apex",
+  },
 }
 
 // Apex shim for testing rebootless updates
