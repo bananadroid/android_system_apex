@@ -220,3 +220,24 @@ prebuilt_apex {
   filename: "com.android.apex.cts.shim.v2_unsigned_apk_container.apex",
   installable: false,
 }
+
+prebuilt_apex {
+  name: "com.android.apex.cts.shim.v2_rebootless_prebuilt",
+  arch: {
+    arm: {
+      src: "prebuilts/arm/com.android.apex.cts.shim.v2_rebootless.apex",
+    },
+    arm64: {
+      src: "prebuilts/arm/com.android.apex.cts.shim.v2_rebootless.apex",
+    },
+    x86: {
+      src: "prebuilts/x86/com.android.apex.cts.shim.v2_rebootless.apex",
+    },
+    x86_64: {
+      src: "prebuilts/x86/com.android.apex.cts.shim.v2_rebootless.apex",
+    },
+  },
+  filename: "com.android.apex.cts.shim.v2_rebootless.apex",
+  installable: false,
+}
+
